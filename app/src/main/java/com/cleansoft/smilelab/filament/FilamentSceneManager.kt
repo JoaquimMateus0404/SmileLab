@@ -54,19 +54,21 @@ class FilamentSceneManager(
 
             if (!uiHelper.isReadyToRender) return
 
-            try {
-                synchronized(this@FilamentSceneManager) {
-                    val swap = swapChain ?: return
-                    val r = renderer ?: return
-                    val v = view ?: return
+            FilamentEngineManager.runOnGLThread {
+                try {
+                    synchronized(this@FilamentSceneManager) {
+                        val swap = swapChain ?: return@runOnGLThread
+                        val r = renderer ?: return@runOnGLThread
+                        val v = view ?: return@runOnGLThread
 
-                    if (r.beginFrame(swap, frameTimeNanos)) {
-                        r.render(v)
-                        r.endFrame()
+                        if (r.beginFrame(swap, frameTimeNanos)) {
+                            r.render(v)
+                            r.endFrame()
+                        }
                     }
+                } catch (e: Exception) {
+                    Log.e(TAG, "⚠️ Erro no frame callback", e)
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "⚠️ Erro no frame callback", e)
             }
         }
     }
@@ -93,19 +95,20 @@ class FilamentSceneManager(
                 ?: throw Exception("Engine não disponível")
 
             // Criar componentes na GL thread
-            FilamentEngineManager.runOnGLThread {
-                try {
+            val result = runCatching {
+                FilamentEngineManager.runOnGLThreadBlocking {
                     createFilamentComponents()
-                    setupUiHelper()
-                    isInitialized = true
+                } ?: throw IllegalStateException("Falha ao criar componentes na GL thread")
+            }
 
-                    Log.d(TAG, "✅ Cena inicializada")
-                    onSuccess()
-
-                } catch (e: Exception) {
-                    Log.e(TAG, "❌ Erro ao criar componentes", e)
-                    onError(e)
-                }
+            result.onSuccess {
+                setupUiHelper()
+                isInitialized = true
+                Log.d(TAG, "✅ Cena inicializada")
+                onSuccess()
+            }.onFailure { error ->
+                Log.e(TAG, "❌ Erro ao criar componentes", error)
+                onError(error as? Exception ?: Exception(error))
             }
 
         } catch (e: Exception) {
@@ -172,32 +175,38 @@ class FilamentSceneManager(
     private fun setupUiHelper() {
         uiHelper.renderCallback = object : UiHelper.RendererCallback {
             override fun onNativeWindowChanged(surface: Surface) {
-                synchronized(this@FilamentSceneManager) {
-                    swapChain?.let { engine?.destroySwapChain(it) }
-                    swapChain = engine?.createSwapChain(surface)
-                    renderer?.let { displayHelper.attach(it, surfaceView.display) }
+                FilamentEngineManager.runOnGLThread {
+                    synchronized(this@FilamentSceneManager) {
+                        swapChain?.let { engine?.destroySwapChain(it) }
+                        swapChain = engine?.createSwapChain(surface)
+                        renderer?.let { displayHelper.attach(it, surfaceView.display) }
+                    }
                 }
             }
 
             override fun onDetachedFromSurface() {
-                synchronized(this@FilamentSceneManager) {
-                    swapChain?.let {
-                        engine?.destroySwapChain(it)
-                        swapChain = null
+                FilamentEngineManager.runOnGLThread {
+                    synchronized(this@FilamentSceneManager) {
+                        swapChain?.let {
+                            engine?.destroySwapChain(it)
+                            swapChain = null
+                        }
                     }
                 }
             }
 
             override fun onResized(width: Int, height: Int) {
-                view?.viewport = Viewport(0, 0, width, height)
-                val aspect = width.toFloat() / height.toFloat()
-                camera?.setProjection(45.0, aspect.toDouble(), 0.1, 100.0, Camera.Fov.VERTICAL)
+                FilamentEngineManager.runOnGLThread {
+                    view?.viewport = Viewport(0, 0, width, height)
+                    val aspect = width.toFloat() / height.toFloat()
+                    camera?.setProjection(45.0, aspect.toDouble(), 0.1, 100.0, Camera.Fov.VERTICAL)
 
-                cameraManipulator = Manipulator.Builder()
-                    .viewport(width, height)
-                    .targetPosition(0f, 0f, 0f)
-                    .orbitHomePosition(0f, 0f, 4f)
-                    .build(Manipulator.Mode.ORBIT)
+                    cameraManipulator = Manipulator.Builder()
+                        .viewport(width, height)
+                        .targetPosition(0f, 0f, 0f)
+                        .orbitHomePosition(0f, 0f, 4f)
+                        .build(Manipulator.Mode.ORBIT)
+                }
             }
         }
 
@@ -248,14 +257,14 @@ class FilamentSceneManager(
                         // Centralizar modelo
                         centerModel(asset)
 
-                        onProgress(1.0f)
-                        onSuccess(asset)
+                        scope.launch { onProgress(1.0f) }
+                        scope.launch { onSuccess(asset) }
 
                         Log.d(TAG, "✅ Modelo adicionado à cena: $key")
 
                     } catch (e: Exception) {
                         Log.e(TAG, "❌ Erro ao adicionar à cena", e)
-                        onError(e)
+                        scope.launch { onError(e) }
                     }
                 }
 
@@ -318,7 +327,7 @@ class FilamentSceneManager(
         uiHelper.detach()
 
         // Destruir recursos na GL thread
-        FilamentEngineManager.runOnGLThread {
+        FilamentEngineManager.runOnGLThreadBlocking {
             try {
                 // Destruir assets
                 modelLoader?.let { loader ->
@@ -376,4 +385,3 @@ class FilamentSceneManager(
         }
     }
 }
-
