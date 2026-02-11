@@ -22,6 +22,8 @@ class UserPreferencesRepository(private val context: Context) {
         val USER_NAME = stringPreferencesKey("user_name")
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
         val DARK_MODE_ENABLED = booleanPreferencesKey("dark_mode_enabled")
+        val SOUND_ENABLED = booleanPreferencesKey("sound_enabled")
+        val VIBRATION_ENABLED = booleanPreferencesKey("vibration_enabled")
         val FIRST_LAUNCH_TIMESTAMP = longPreferencesKey("first_launch_timestamp")
     }
 
@@ -75,6 +77,32 @@ class UserPreferencesRepository(private val context: Context) {
         }
         .map { preferences ->
             preferences[PreferencesKeys.DARK_MODE_ENABLED] ?: false
+        }
+
+    // Flow para som nas notificações
+    val soundEnabled: Flow<Boolean> = context.dataStore.data
+        .catch { exception ->
+            if (exception is IOException) {
+                emit(emptyPreferences())
+            } else {
+                throw exception
+            }
+        }
+        .map { preferences ->
+            preferences[PreferencesKeys.SOUND_ENABLED] ?: true
+        }
+
+    // Flow para vibração nas notificações
+    val vibrationEnabled: Flow<Boolean> = context.dataStore.data
+        .catch { exception ->
+            if (exception is IOException) {
+                emit(emptyPreferences())
+            } else {
+                throw exception
+            }
+        }
+        .map { preferences ->
+            preferences[PreferencesKeys.VIBRATION_ENABLED] ?: true
         }
 
     suspend fun setOnboardingCompleted(completed: Boolean) {

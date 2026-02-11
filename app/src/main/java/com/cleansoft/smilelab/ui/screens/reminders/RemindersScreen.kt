@@ -14,43 +14,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.cleansoft.smilelab.data.local.entity.BrushingReminder
 import com.cleansoft.smilelab.ui.theme.SmilePrimary
-
-/**
- * Dados de lembrete para UI
- */
-data class ReminderUiState(
-    val id: Long,
-    val label: String,
-    val time: String,
-    val days: String,
-    val isEnabled: Boolean
-)
-
-// Lembretes de exemplo
-val sampleReminders = listOf(
-    ReminderUiState(
-        id = 1,
-        label = "Escovação matinal",
-        time = "07:30",
-        days = "Todos os dias",
-        isEnabled = true
-    ),
-    ReminderUiState(
-        id = 2,
-        label = "Escovação após almoço",
-        time = "13:00",
-        days = "Seg-Sex",
-        isEnabled = true
-    ),
-    ReminderUiState(
-        id = 3,
-        label = "Escovação noturna",
-        time = "22:00",
-        days = "Todos os dias",
-        isEnabled = true
-    )
-)
+import java.util.Locale
 
 /**
  * Tela de Lembretes de Escovação
@@ -59,9 +26,10 @@ val sampleReminders = listOf(
 @Composable
 fun RemindersScreen(
     onNavigateBack: () -> Unit,
-    onNavigateToAddReminder: () -> Unit
+    onNavigateToAddReminder: () -> Unit,
+    viewModel: RemindersViewModel = viewModel()
 ) {
-    var reminders by remember { mutableStateOf(sampleReminders) }
+    val reminders by viewModel.allReminders.collectAsState(initial = emptyList())
 
     Scaffold(
         topBar = {
@@ -176,13 +144,13 @@ fun ReminderCard(
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
 
-    val timeString = String.format("%02d:%02d", reminder.hour, reminder.minute)
+    val timeString = String.format(Locale.getDefault(), "%02d:%02d", reminder.hour, reminder.minute)
     val daysString = when {
         reminder.daysOfWeek.size == 7 -> "Todos os dias"
         reminder.daysOfWeek == listOf(1, 2, 3, 4, 5) -> "Seg-Sex"
         reminder.daysOfWeek == listOf(6, 7) -> "Fim de semana"
-        else -> reminder.daysOfWeek.joinToString(", ") {
-            when(it) {
+        else -> reminder.daysOfWeek.joinToString(", ") { day ->
+            when(day) {
                 1 -> "Seg"
                 2 -> "Ter"
                 3 -> "Qua"

@@ -12,7 +12,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cleansoft.smilelab.ui.theme.SmilePrimary
+import java.util.Locale
 
 /**
  * Tela para adicionar novo lembrete
@@ -20,7 +22,8 @@ import com.cleansoft.smilelab.ui.theme.SmilePrimary
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddReminderScreen(
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    viewModel: RemindersViewModel = viewModel()
 ) {
     var label by remember { mutableStateOf("") }
     var selectedHour by remember { mutableIntStateOf(8) }
@@ -126,7 +129,7 @@ fun AddReminderScreen(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
                             Text(
-                                text = String.format("%02d:%02d", selectedHour, selectedMinute),
+                                text = String.format(Locale.getDefault(), "%02d:%02d", selectedHour, selectedMinute),
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = SmilePrimary
