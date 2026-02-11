@@ -37,16 +37,18 @@ class ModelLoader(
         }
 
         // CRITICAL: Criar AssetLoader e ResourceLoader na thread GL
-        FilamentEngineManager.runOnGLThread {
-            try {
-                val materialProvider = UbershaderProvider(engine)
-                assetLoader = AssetLoader(engine, materialProvider, EntityManager.get())
-                resourceLoader = ResourceLoader(engine)
-                isInitialized = true
-                Log.d(TAG, "✅ ModelLoader inicializado na GL thread")
-            } catch (e: Exception) {
-                Log.e(TAG, "❌ Erro ao inicializar ModelLoader", e)
-            }
+        val initialized = FilamentEngineManager.runOnGLThreadBlocking {
+            val materialProvider = UbershaderProvider(engine)
+            assetLoader = AssetLoader(engine, materialProvider, EntityManager.get())
+            resourceLoader = ResourceLoader(engine)
+            true
+        } ?: false
+
+        isInitialized = initialized
+        if (initialized) {
+            Log.d(TAG, "✅ ModelLoader inicializado na GL thread")
+        } else {
+            Log.e(TAG, "❌ Erro ao inicializar ModelLoader")
         }
     }
 
@@ -194,7 +196,7 @@ class ModelLoader(
      * Cleanup - destroi loaders NA THREAD GL
      */
     fun destroy() {
-        FilamentEngineManager.runOnGLThread {
+        FilamentEngineManager.runOnGLThreadBlocking {
             try {
                 assetLoader?.destroy()
                 assetLoader = null
@@ -207,4 +209,3 @@ class ModelLoader(
         }
     }
 }
-
