@@ -24,6 +24,7 @@ class ModelLoader(
     // Estes serão criados na GL thread
     private var assetLoader: AssetLoader? = null
     private var resourceLoader: ResourceLoader? = null
+    private var materialProvider: UbershaderProvider? = null
     private var isInitialized = false
 
     /**
@@ -38,8 +39,9 @@ class ModelLoader(
 
         // CRITICAL: Criar AssetLoader e ResourceLoader na thread GL
         val initialized = FilamentEngineManager.runOnGLThreadBlocking {
-            val materialProvider = UbershaderProvider(engine)
-            assetLoader = AssetLoader(engine, materialProvider, EntityManager.get())
+            val provider = UbershaderProvider(engine)
+            materialProvider = provider
+            assetLoader = AssetLoader(engine, provider, EntityManager.get())
             resourceLoader = ResourceLoader(engine)
             true
         } ?: false
@@ -198,8 +200,15 @@ class ModelLoader(
     fun destroy() {
         FilamentEngineManager.runOnGLThreadBlocking {
             try {
+                resourceLoader?.asyncCancelLoad()
+                resourceLoader?.evictResourceData()
+
                 assetLoader?.destroy()
                 assetLoader = null
+
+                materialProvider?.destroyMaterials()
+                materialProvider = null
+
                 resourceLoader = null
                 isInitialized = false
                 Log.d(TAG, "✅ ModelLoader destruído")
