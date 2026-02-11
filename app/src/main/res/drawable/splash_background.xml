@@ -1,13 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Fundo sólido da cor primária -->
-    <item android:drawable="@color/smile_primary"/>
-
-    <!-- Logo centralizado -->
     <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@drawable/ic_launcher_foreground"/>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/smile_primary"/>
+        </shape>
     </item>
 </layer-list>
-
