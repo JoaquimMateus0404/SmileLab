@@ -115,12 +115,10 @@ fun RemindersScreen(
                     ReminderCard(
                         reminder = reminder,
                         onToggle = { isEnabled ->
-                            reminders = reminders.map {
-                                if (it.id == reminder.id) it.copy(isEnabled = isEnabled) else it
-                            }
+                            viewModel.toggleReminder(reminder.id, isEnabled)
                         },
                         onDelete = {
-                            reminders = reminders.filter { it.id != reminder.id }
+                            viewModel.deleteReminder(reminder)
                         }
                     )
                 }
@@ -172,11 +170,30 @@ fun RemindersHeader() {
 
 @Composable
 fun ReminderCard(
-    reminder: ReminderUiState,
+    reminder: BrushingReminder,
     onToggle: (Boolean) -> Unit,
     onDelete: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
+
+    val timeString = String.format("%02d:%02d", reminder.hour, reminder.minute)
+    val daysString = when {
+        reminder.daysOfWeek.size == 7 -> "Todos os dias"
+        reminder.daysOfWeek == listOf(1, 2, 3, 4, 5) -> "Seg-Sex"
+        reminder.daysOfWeek == listOf(6, 7) -> "Fim de semana"
+        else -> reminder.daysOfWeek.joinToString(", ") {
+            when(it) {
+                1 -> "Seg"
+                2 -> "Ter"
+                3 -> "Qua"
+                4 -> "Qui"
+                5 -> "Sex"
+                6 -> "Sáb"
+                7 -> "Dom"
+                else -> ""
+            }
+        }
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -201,14 +218,14 @@ fun ReminderCard(
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = reminder.time,
+                        text = timeString,
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         color = if (reminder.isEnabled) SmilePrimary else SmilePrimary.copy(alpha = 0.5f)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = reminder.days,
+                        text = daysString,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )

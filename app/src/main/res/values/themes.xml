@@ -2,4 +2,11 @@
 <resources>
 
     <style name="Theme.SmileLab" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- Tema para Splash Screen - remove a tela branca inicial -->
+    <style name="Theme.SmileLab.Splash" parent="Theme.SmileLab">
+        <item name="android:windowBackground">@drawable/splash_background</item>
+        <item name="android:statusBarColor">@color/smile_primary</item>
+        <item name="android:navigationBarColor">@color/smile_primary</item>
+    </style>
 </resources>

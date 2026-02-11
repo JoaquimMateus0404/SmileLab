@@ -16,7 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.cleansoft.smilelab.data.repository.UserPreferencesRepository
 import com.cleansoft.smilelab.ui.theme.SmilePrimary
+import kotlinx.coroutines.launch
 
 /**
  * Tela de Configurações
@@ -24,12 +26,16 @@ import com.cleansoft.smilelab.ui.theme.SmilePrimary
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    userPreferencesRepository: UserPreferencesRepository
 ) {
-    var darkModeEnabled by remember { mutableStateOf(false) }
-    var notificationsEnabled by remember { mutableStateOf(true) }
-    var soundEnabled by remember { mutableStateOf(true) }
-    var vibrationEnabled by remember { mutableStateOf(true) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Coletar preferências do repository
+    val darkModeEnabled by userPreferencesRepository.darkModeEnabled.collectAsState(initial = false)
+    val notificationsEnabled by userPreferencesRepository.notificationsEnabled.collectAsState(initial = true)
+    val soundEnabled by userPreferencesRepository.soundEnabled.collectAsState(initial = true)
+    val vibrationEnabled by userPreferencesRepository.vibrationEnabled.collectAsState(initial = true)
 
     Scaffold(
         topBar = {
@@ -63,7 +69,11 @@ fun SettingsScreen(
                         title = "Modo Escuro",
                         subtitle = "Ativar tema escuro",
                         checked = darkModeEnabled,
-                        onCheckedChange = { darkModeEnabled = it }
+                        onCheckedChange = {
+                            coroutineScope.launch {
+                                userPreferencesRepository.setDarkModeEnabled(it)
+                            }
+                        }
                     )
                 }
             }
@@ -76,7 +86,11 @@ fun SettingsScreen(
                         title = "Notificações",
                         subtitle = "Receber lembretes de escovação",
                         checked = notificationsEnabled,
-                        onCheckedChange = { notificationsEnabled = it }
+                        onCheckedChange = {
+                            coroutineScope.launch {
+                                userPreferencesRepository.setNotificationsEnabled(it)
+                            }
+                        }
                     )
 
                     if (notificationsEnabled) {
@@ -87,7 +101,11 @@ fun SettingsScreen(
                             title = "Som",
                             subtitle = "Ativar som nas notificações",
                             checked = soundEnabled,
-                            onCheckedChange = { soundEnabled = it }
+                            onCheckedChange = {
+                                coroutineScope.launch {
+                                    userPreferencesRepository.setSoundEnabled(it)
+                                }
+                            }
                         )
 
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -97,7 +115,11 @@ fun SettingsScreen(
                             title = "Vibração",
                             subtitle = "Ativar vibração nas notificações",
                             checked = vibrationEnabled,
-                            onCheckedChange = { vibrationEnabled = it }
+                            onCheckedChange = {
+                                coroutineScope.launch {
+                                    userPreferencesRepository.setVibrationEnabled(it)
+                                }
+                            }
                         )
                     }
                 }

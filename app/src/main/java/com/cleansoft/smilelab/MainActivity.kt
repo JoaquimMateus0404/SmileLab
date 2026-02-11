@@ -22,12 +22,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Trocar tema do splash para o tema normal
+        setTheme(R.style.Theme_SmileLab)
+
         // Inicializar repository de preferências
         userPreferencesRepository = UserPreferencesRepository(applicationContext)
 
         enableEdgeToEdge()
         setContent {
-            SmileLabTheme {
+            val darkMode by userPreferencesRepository.darkModeEnabled.collectAsState(initial = false)
+
+            SmileLabTheme(darkTheme = darkMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -42,7 +47,8 @@ class MainActivity : ComponentActivity() {
                             coroutineScope.launch {
                                 userPreferencesRepository.setOnboardingCompleted(true)
                             }
-                        }
+                        },
+                        userPreferencesRepository = userPreferencesRepository
                     )
                 }
             }

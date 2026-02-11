@@ -30,6 +30,7 @@ fun Teeth3DViewerScreen(
 ) {
     var hasError by remember { mutableStateOf(false) }
     var isModelLoaded by remember { mutableStateOf(false) }
+    var sceneManager by remember { mutableStateOf<com.cleansoft.smilelab.filament.FilamentSceneManager?>(null) }
 
 
     Scaffold(
@@ -66,7 +67,7 @@ fun Teeth3DViewerScreen(
                 if (!hasError) {
                     FilamentViewer3D(
                         modifier = Modifier.fillMaxSize(),
-                        modelPath = "models/helmet.glb",
+                        modelPath = "models/inside_my_tooth.glb",
                         onModelLoaded = {
                             android.util.Log.d("Teeth3DViewer", "✅ Modelo 3D carregado!")
                             isModelLoaded = true
@@ -74,11 +75,63 @@ fun Teeth3DViewerScreen(
                         onError = { error ->
                             android.util.Log.e("Teeth3DViewer", "❌ Erro ao carregar 3D", error)
                             hasError = true
+                        },
+                        onSceneManagerReady = { manager ->
+                            sceneManager = manager
+                            android.util.Log.d("Teeth3DViewer", "✅ SceneManager pronto para controles")
                         }
                     )
 
                     // Instruções overlay (mostrar quando modelo estiver carregado)
                     if (isModelLoaded) {
+                        // Controles de zoom (lado esquerdo)
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Zoom In
+                            FloatingActionButton(
+                                onClick = {
+                                    sceneManager?.getCameraManipulator()?.scroll(0, 0, -2f)
+                                    android.util.Log.d("Teeth3DViewer", "🔍 Zoom In")
+                                },
+                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                                contentColor = SmilePrimary,
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(Icons.Filled.Add, contentDescription = "Zoom In")
+                            }
+
+                            // Zoom Out
+                            FloatingActionButton(
+                                onClick = {
+                                    sceneManager?.getCameraManipulator()?.scroll(0, 0, 2f)
+                                    android.util.Log.d("Teeth3DViewer", "🔍 Zoom Out")
+                                },
+                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                                contentColor = SmilePrimary,
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(Icons.Filled.Remove, contentDescription = "Zoom Out")
+                            }
+
+                            // Reset View
+                            FloatingActionButton(
+                                onClick = {
+                                    sceneManager?.resetCamera()
+                                    android.util.Log.d("Teeth3DViewer", "🔄 Reset View")
+                                },
+                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                                contentColor = SmilePrimary,
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(Icons.Filled.Refresh, contentDescription = "Reset")
+                            }
+                        }
+
+                        // Instruções (canto superior direito)
                         Surface(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
@@ -92,11 +145,15 @@ fun Teeth3DViewerScreen(
                             ) {
                                 InteractionHint(
                                     icon = Icons.Filled.TouchApp,
-                                    text = "Arraste para rotacionar"
+                                    text = "1 dedo: rotacionar"
                                 )
                                 InteractionHint(
                                     icon = Icons.Filled.ZoomIn,
-                                    text = "Pinça para zoom"
+                                    text = "Pinça: zoom"
+                                )
+                                InteractionHint(
+                                    icon = Icons.Filled.PanTool,
+                                    text = "2 dedos: mover"
                                 )
                             }
                         }

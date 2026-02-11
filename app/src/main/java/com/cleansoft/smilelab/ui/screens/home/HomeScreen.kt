@@ -21,7 +21,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.cleansoft.smilelab.data.local.SmileLabDatabase
+import com.cleansoft.smilelab.data.repository.ProgressStats
+import com.cleansoft.smilelab.data.repository.UserProgressRepository
+import com.cleansoft.smilelab.ui.components.UserProgressCard
 import com.cleansoft.smilelab.ui.theme.*
+import kotlinx.coroutines.launch
 
 /**
  * Dados para os módulos educativos
@@ -84,6 +91,30 @@ fun HomeScreen(
     onNavigateToReminders: () -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // State para estatísticas de progresso
+    var progressStats by remember {
+        mutableStateOf(
+            ProgressStats(
+                totalViewed = 0,
+                totalCompleted = 0,
+                completionPercentage = 0,
+                categoriesProgress = emptyMap()
+            )
+        )
+    }
+
+    // Carregar estatísticas ao iniciar
+    LaunchedEffect(Unit) {
+        scope.launch {
+            val database = SmileLabDatabase.getDatabase(context)
+            val repository = UserProgressRepository(database.userProgressDao())
+            progressStats = repository.getProgressStats()
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -124,6 +155,11 @@ fun HomeScreen(
             // Banner de boas-vindas
             item {
                 WelcomeBanner()
+            }
+
+            // Card de progresso do utilizador
+            item {
+                UserProgressCard(progressStats = progressStats)
             }
 
             // Card de visualização 3D

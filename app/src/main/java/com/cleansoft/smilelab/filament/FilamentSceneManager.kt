@@ -43,6 +43,7 @@ class FilamentSceneManager(
     private var isInitialized = false
     private var isDestroyed = false
     private var cameraManipulator: Manipulator? = null
+    private var previousPinchDistance: Float = 0f  // Para controle de zoom
 
     // Rendering
     private val choreographer = Choreographer.getInstance()
@@ -60,6 +61,20 @@ class FilamentSceneManager(
                         val swap = swapChain ?: return@runOnGLThread
                         val r = renderer ?: return@runOnGLThread
                         val v = view ?: return@runOnGLThread
+                        val cam = camera ?: return@runOnGLThread
+
+                        // Atualizar câmera com manipulador
+                        cameraManipulator?.let { manipulator ->
+                            val eyePos = DoubleArray(3)
+                            val target = DoubleArray(3)
+                            val upward = DoubleArray(3)
+                            manipulator.getLookAt(eyePos, target, upward)
+                            cam.lookAt(
+                                eyePos[0], eyePos[1], eyePos[2],
+                                target[0], target[1], target[2],
+                                upward[0], upward[1], upward[2]
+                            )
+                        }
 
                         if (r.beginFrame(swap, frameTimeNanos)) {
                             r.render(v)
@@ -128,11 +143,25 @@ class FilamentSceneManager(
         view = eng.createView()
         camera = eng.createCamera(eng.entityManager.create())
 
+        // Configurar opções de renderização do View
+        view?.apply {
+            // Anti-aliasing
+            antiAliasing = View.AntiAliasing.FXAA
+
+            // Post-processing
+            isPostProcessingEnabled = true
+        }
+
         view?.scene = scene
         view?.camera = camera
 
-        // Configurar câmera
-        camera?.setExposure(16f, 1f / 125f, 100f)
+        // Configurar câmera com exposição adequada
+        // setExposure(aperture, shutterSpeed, sensitivity)
+        camera?.setExposure(
+            4.0f,           // aperture: f/4 (abertura média)
+            1f / 60f,       // shutterSpeed: 1/60s
+            200f            // sensitivity: ISO 200
+        )
 
         // Setup lighting
         setupLighting()
@@ -152,21 +181,54 @@ class FilamentSceneManager(
         val eng = engine ?: return
         val scn = scene ?: return
 
-        // Luz direcional
-        val lightEntity = eng.entityManager.create()
+        // Luz direcional principal (sol)
+        val sunEntity = eng.entityManager.create()
+        LightManager.Builder(LightManager.Type.DIRECTIONAL)
+            .color(1f, 0.98f, 0.95f)  // Luz levemente quente
+            .intensity(50000f)  // Reduzido de 100000f
+            .direction(-0.5f, -1f, -0.8f)  // Ângulo mais natural
+            .castShadows(false)  // Desabilitar sombras para melhor performance
+            .build(eng, sunEntity)
+        scn.addEntity(sunEntity)
+
+        // Luz de preenchimento (fill light) - para suavizar sombras
+        val fillEntity = eng.entityManager.create()
+        LightManager.Builder(LightManager.Type.DIRECTIONAL)
+            .color(0.8f, 0.9f, 1.0f)  // Luz azulada
+            .intensity(20000f)
+            .direction(0.5f, 0.5f, 1f)  // Vindo de outra direção
+            .castShadows(false)
+            .build(eng, fillEntity)
+        scn.addEntity(fillEntity)
+
+        // Luz de fundo (back light)
+        val backEntity = eng.entityManager.create()
         LightManager.Builder(LightManager.Type.DIRECTIONAL)
             .color(1f, 1f, 1f)
-            .intensity(100000f)
-            .direction(0f, -1f, -1f)
-            .castShadows(true)
-            .build(eng, lightEntity)
-        scn.addEntity(lightEntity)
+            .intensity(15000f)
+            .direction(0f, 1f, 0.5f)  // De baixo para cima
+            .castShadows(false)
+            .build(eng, backEntity)
+        scn.addEntity(backEntity)
 
-        // Skybox
+        // IndirectLight (iluminação ambiente) - CRÍTICO para materiais PBR
+        try {
+            val ibl = IndirectLight.Builder()
+                .intensity(30000f)  // Iluminação ambiente
+                .build(eng)
+            scn.indirectLight = ibl
+            Log.d(TAG, "✅ IndirectLight configurado")
+        } catch (e: Exception) {
+            Log.e(TAG, "⚠️ Erro ao criar IndirectLight", e)
+        }
+
+        // Skybox com cor neutra
         val skybox = Skybox.Builder()
-            .color(0.9f, 0.9f, 0.95f, 1f)
+            .color(0.4f, 0.4f, 0.45f, 1f)  // Mais escuro para não ofuscar
             .build(eng)
         scn.skybox = skybox
+
+        Log.d(TAG, "✅ Sistema de iluminação configurado (3 luzes + IBL)")
     }
 
     /**
@@ -201,11 +263,15 @@ class FilamentSceneManager(
                     val aspect = width.toFloat() / height.toFloat()
                     camera?.setProjection(45.0, aspect.toDouble(), 0.1, 100.0, Camera.Fov.VERTICAL)
 
+                    // Configurar manipulador com zoom out inicial
                     cameraManipulator = Manipulator.Builder()
                         .viewport(width, height)
-                        .targetPosition(0f, 0f, 0f)
-                        .orbitHomePosition(0f, 0f, 4f)
+                        .targetPosition(0f, 0f, 0f)  // Centro do modelo
+                        .orbitHomePosition(0f, 1f, 8f)  // Aumentado de 4f para 8f (mais longe)
+                        .zoomSpeed(0.05f)  // Velocidade de zoom suave
                         .build(Manipulator.Mode.ORBIT)
+
+                    Log.d(TAG, "✅ Câmera configurada: zoom inicial = 8 unidades")
                 }
             }
         }
@@ -309,6 +375,37 @@ class FilamentSceneManager(
      * Retorna manipulador de câmera
      */
     fun getCameraManipulator(): Manipulator? = cameraManipulator
+
+    /**
+     * Reset da câmera para posição inicial
+     */
+    fun resetCamera() {
+        val v = view ?: return
+        val viewport = v.viewport
+
+        FilamentEngineManager.runOnGLThread {
+            cameraManipulator = Manipulator.Builder()
+                .viewport(viewport.width, viewport.height)
+                .targetPosition(0f, 0f, 0f)
+                .orbitHomePosition(0f, 1f, 8f)
+                .zoomSpeed(0.05f)
+                .build(Manipulator.Mode.ORBIT)
+
+            Log.d(TAG, "🔄 Câmera resetada")
+        }
+    }
+
+    /**
+     * Retorna distância anterior do pinch (para zoom)
+     */
+    fun getPreviousPinchDistance(): Float = previousPinchDistance
+
+    /**
+     * Define distância do pinch (para zoom)
+     */
+    fun setPreviousPinchDistance(distance: Float) {
+        previousPinchDistance = distance
+    }
 
     /**
      * Destroi a cena

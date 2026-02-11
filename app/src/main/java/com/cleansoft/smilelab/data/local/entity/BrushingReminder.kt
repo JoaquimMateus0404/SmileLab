@@ -13,6 +13,8 @@ data class BrushingReminder(
     val id: Long = 0,
 
     val label: String,              // Ex: "Escovação matinal"
+    val title: String = "🦷 Hora de Escovar!",
+    val message: String? = null,    // Mensagem personalizada (opcional)
     val hour: Int,                  // 0-23
     val minute: Int,                // 0-59
     val isEnabled: Boolean = true,

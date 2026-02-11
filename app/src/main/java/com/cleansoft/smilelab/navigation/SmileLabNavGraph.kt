@@ -155,7 +155,8 @@ fun SmileLabNavGraph(
         // Configurações
         composable(Screen.Settings.route) {
             SettingsScreen(
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                userPreferencesRepository = userPreferencesRepository
             )
         }
     }

@@ -20,9 +20,10 @@ import com.cleansoft.smilelab.filament.FilamentSceneManager
 @Composable
 fun FilamentViewer3D(
     modifier: Modifier = Modifier,
-    modelPath: String = "models/scene.gltf",
+    modelPath: String = "models/cavidade_classe_ii__mo__dente_16.glb",
     onModelLoaded: () -> Unit = {},
-    onError: (Exception) -> Unit = {}
+    onError: (Exception) -> Unit = {},
+    onSceneManagerReady: (FilamentSceneManager) -> Unit = {}
 ) {
     var sceneManager by remember { mutableStateOf<FilamentSceneManager?>(null) }
     var isLoading by remember { mutableStateOf(true) }
@@ -56,6 +57,7 @@ fun FilamentViewer3D(
                                 onSuccess = {
                                     isLoading = false
                                     onModelLoaded()
+                                    onSceneManagerReady(manager)  // Notificar que está pronto
                                 },
                                 onError = { e ->
                                     isLoading = false
@@ -92,19 +94,58 @@ fun FilamentViewer3D(
 
 /**
  * Manipula eventos de toque para controlar câmera
+ * Suporta: rotação (1 dedo), pan (2 dedos), zoom (pinch)
  */
 private fun handleTouch(manager: FilamentSceneManager, event: MotionEvent): Boolean {
     val manipulator = manager.getCameraManipulator() ?: return false
 
     when (event.actionMasked) {
         MotionEvent.ACTION_DOWN -> {
+            // 1 dedo = rotação
             manipulator.grabBegin(event.x.toInt(), event.y.toInt(), false)
         }
-        MotionEvent.ACTION_MOVE -> {
-            manipulator.grabUpdate(event.x.toInt(), event.y.toInt())
+
+        MotionEvent.ACTION_POINTER_DOWN -> {
+            // 2+ dedos = pan ou zoom
+            if (event.pointerCount == 2) {
+                val x = (event.getX(0) + event.getX(1)) / 2
+                val y = (event.getY(0) + event.getY(1)) / 2
+                manipulator.grabBegin(x.toInt(), y.toInt(), true)  // strafe = true para pan
+            }
         }
-        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+
+        MotionEvent.ACTION_MOVE -> {
+            if (event.pointerCount == 2) {
+                // Calcular centro entre os dois dedos
+                val x = (event.getX(0) + event.getX(1)) / 2
+                val y = (event.getY(0) + event.getY(1)) / 2
+
+                // Calcular distância para zoom (pinch)
+                val dx = event.getX(0) - event.getX(1)
+                val dy = event.getY(0) - event.getY(1)
+                val distance = kotlin.math.sqrt(dx * dx + dy * dy)
+
+                // Scroll para zoom (valores negativos = zoom in)
+                val previousDistance = manager.getPreviousPinchDistance()
+                if (previousDistance > 0) {
+                    val delta = distance - previousDistance
+                    manipulator.scroll(0, 0, delta * 0.05f)
+                }
+                manager.setPreviousPinchDistance(distance)
+
+                // Pan com dois dedos
+                manipulator.grabUpdate(x.toInt(), y.toInt())
+            } else {
+                // Rotação com 1 dedo
+                manipulator.grabUpdate(event.x.toInt(), event.y.toInt())
+            }
+        }
+
+        MotionEvent.ACTION_UP,
+        MotionEvent.ACTION_POINTER_UP,
+        MotionEvent.ACTION_CANCEL -> {
             manipulator.grabEnd()
+            manager.setPreviousPinchDistance(0f)
         }
     }
 

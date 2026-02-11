@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import com.cleansoft.smilelab.data.local.SmileLabDatabase
 import com.cleansoft.smilelab.filament.FilamentEngineManager
+import com.cleansoft.smilelab.notifications.NotificationHelper
 
 /**
  * SmileLab Application class
@@ -27,6 +28,10 @@ class SmileLabApplication : Application() {
         instance = this
 
         Log.d(TAG, "🚀 Inicializando SmileLab Application...")
+
+        // Criar canal de notificações
+        NotificationHelper.createNotificationChannel(this)
+        Log.d(TAG, "✅ Canal de notificações criado")
 
         // Inicializar Filament Engine (thread dedicada)
         val filamentSuccess = FilamentEngineManager.initialize()

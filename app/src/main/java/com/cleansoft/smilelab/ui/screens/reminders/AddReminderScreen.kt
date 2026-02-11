@@ -51,14 +51,23 @@ fun AddReminderScreen(
                 actions = {
                     TextButton(
                         onClick = {
-                            // TODO: Salvar lembrete
+                            // Salvar lembrete
+                            viewModel.addReminder(
+                                label = label,
+                                hour = selectedHour,
+                                minute = selectedMinute,
+                                daysOfWeek = selectedDays.toList().sorted()
+                            )
                             onNavigateBack()
                         },
-                        enabled = label.isNotBlank()
+                        enabled = label.isNotBlank() && selectedDays.isNotEmpty()
                     ) {
                         Text(
                             "Salvar",
-                            color = if (label.isNotBlank()) SmilePrimary else SmilePrimary.copy(alpha = 0.5f)
+                            color = if (label.isNotBlank() && selectedDays.isNotEmpty())
+                                SmilePrimary
+                            else
+                                SmilePrimary.copy(alpha = 0.5f)
                         )
                     }
                 },

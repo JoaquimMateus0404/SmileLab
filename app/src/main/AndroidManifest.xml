@@ -23,13 +23,29 @@
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
-            android:theme="@style/Theme.SmileLab">
+            android:theme="@style/Theme.SmileLab.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Receiver para disparar notificações de lembretes -->
+        <receiver
+            android:name=".notifications.ReminderReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <!-- Receiver para reagendar lembretes após reiniciar o dispositivo -->
+        <receiver
+            android:name=".notifications.BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

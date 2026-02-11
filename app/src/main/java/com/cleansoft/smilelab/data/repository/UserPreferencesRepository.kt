@@ -101,6 +101,18 @@ class UserPreferencesRepository(private val context: Context) {
         }
     }
 
+    suspend fun setSoundEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.SOUND_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setVibrationEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.VIBRATION_ENABLED] = enabled
+        }
+    }
+
     suspend fun setFirstLaunchTimestamp() {
         context.dataStore.edit { preferences ->
             if (preferences[PreferencesKeys.FIRST_LAUNCH_TIMESTAMP] == null) {

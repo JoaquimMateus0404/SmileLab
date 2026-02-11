@@ -25,32 +25,39 @@ fun SplashScreen(
     onNavigateToHome: () -> Unit,
     isOnboardingCompleted: Boolean?
 ) {
-    // Animações
-    val scale = remember { Animatable(0f) }
+    // Animações sincronizadas
+    val scale = remember { Animatable(0.5f) }
     val alpha = remember { Animatable(0f) }
+    var navigationHandled by remember { mutableStateOf(false) }
 
     LaunchedEffect(key1 = true) {
-        // Animação de entrada
-        scale.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(
-                durationMillis = 800,
-                easing = FastOutSlowInEasing
+        // Animações em paralelo - mais suaves
+        launch {
+            scale.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = 600,
+                    easing = FastOutSlowInEasing
+                )
             )
-        )
-        alpha.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(durationMillis = 500)
-        )
-
-        // Aguarda um pouco para mostrar a splash
-        delay(1500)
+        }
+        launch {
+            alpha.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = 600,
+                    easing = LinearEasing
+                )
+            )
+        }
     }
 
     // Navega quando o estado do onboarding estiver disponível
     LaunchedEffect(isOnboardingCompleted) {
-        if (isOnboardingCompleted != null) {
-            delay(500) // Pequeno delay adicional
+        if (isOnboardingCompleted != null && !navigationHandled) {
+            // Aguarda animações completarem
+            delay(1200)
+            navigationHandled = true
             if (isOnboardingCompleted) {
                 onNavigateToHome()
             } else {
@@ -68,7 +75,9 @@ fun SplashScreen(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
-            modifier = Modifier.scale(scale.value)
+            modifier = Modifier
+                .scale(scale.value)
+                .alpha(alpha.value)
         ) {
             // Emoji de dente como placeholder para logo
             Text(
@@ -81,8 +90,7 @@ fun SplashScreen(
                 text = "SmileLab",
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.alpha(alpha.value)
+                color = MaterialTheme.colorScheme.onPrimary
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -90,8 +98,7 @@ fun SplashScreen(
             Text(
                 text = "Aprenda a cuidar do seu sorriso",
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
-                modifier = Modifier.alpha(alpha.value)
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
             )
         }
 

@@ -10,14 +10,20 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface UserProgressDao {
 
-    @Query("SELECT * FROM user_progress")
+    @Query("SELECT * FROM user_progress ORDER BY lastViewedAt DESC")
     fun getAllProgress(): Flow<List<UserProgress>>
 
+    @Query("SELECT * FROM user_progress ORDER BY lastViewedAt DESC")
+    suspend fun getAllProgressList(): List<UserProgress>
+
     @Query("SELECT * FROM user_progress WHERE contentId = :contentId")
-    suspend fun getProgressByContentId(contentId: Long): UserProgress?
+    suspend fun getProgressByContentId(contentId: String): UserProgress?
+
+    @Query("SELECT * FROM user_progress WHERE category = :category")
+    fun getProgressByCategory(category: String): Flow<List<UserProgress>>
 
     @Query("SELECT * FROM user_progress WHERE isCompleted = 1")
-    fun getCompletedProgress(): Flow<List<UserProgress>>
+    fun getCompletedContent(): Flow<List<UserProgress>>
 
     @Query("SELECT COUNT(*) FROM user_progress WHERE isCompleted = 1")
     fun getCompletedCount(): Flow<Int>
@@ -29,13 +35,19 @@ interface UserProgressDao {
     suspend fun updateProgress(progress: UserProgress)
 
     @Query("UPDATE user_progress SET isCompleted = 1, completedAt = :completedAt WHERE contentId = :contentId")
-    suspend fun markAsCompleted(contentId: Long, completedAt: Long = System.currentTimeMillis())
+    suspend fun markAsCompleted(contentId: String, completedAt: Long)
 
-    @Query("UPDATE user_progress SET viewCount = viewCount + 1, lastViewedAt = :timestamp WHERE contentId = :contentId")
-    suspend fun incrementViewCount(contentId: Long, timestamp: Long = System.currentTimeMillis())
+    @Query("UPDATE user_progress SET viewCount = viewCount + 1 WHERE contentId = :contentId")
+    suspend fun incrementViewCount(contentId: String)
+
+    @Query("UPDATE user_progress SET lastViewedAt = :timestamp WHERE contentId = :contentId")
+    suspend fun updateLastViewed(contentId: String, timestamp: Long)
 
     @Delete
     suspend fun deleteProgress(progress: UserProgress)
+
+    @Query("DELETE FROM user_progress WHERE category = :category")
+    suspend fun deleteProgressByCategory(category: String)
 
     @Query("DELETE FROM user_progress")
     suspend fun deleteAllProgress()
