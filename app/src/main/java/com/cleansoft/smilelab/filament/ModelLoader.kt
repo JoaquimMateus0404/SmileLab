@@ -24,6 +24,7 @@ class ModelLoader(
     // Estes serão criados na GL thread
     private var assetLoader: AssetLoader? = null
     private var resourceLoader: ResourceLoader? = null
+    private var materialProvider: UbershaderProvider? = null
     private var isInitialized = false
 
     /**
@@ -37,16 +38,19 @@ class ModelLoader(
         }
 
         // CRITICAL: Criar AssetLoader e ResourceLoader na thread GL
-        FilamentEngineManager.runOnGLThread {
-            try {
-                val materialProvider = UbershaderProvider(engine)
-                assetLoader = AssetLoader(engine, materialProvider, EntityManager.get())
-                resourceLoader = ResourceLoader(engine)
-                isInitialized = true
-                Log.d(TAG, "✅ ModelLoader inicializado na GL thread")
-            } catch (e: Exception) {
-                Log.e(TAG, "❌ Erro ao inicializar ModelLoader", e)
-            }
+        val initialized = FilamentEngineManager.runOnGLThreadBlocking {
+            val provider = UbershaderProvider(engine)
+            materialProvider = provider
+            assetLoader = AssetLoader(engine, provider, EntityManager.get())
+            resourceLoader = ResourceLoader(engine)
+            true
+        } ?: false
+
+        isInitialized = initialized
+        if (initialized) {
+            Log.d(TAG, "✅ ModelLoader inicializado na GL thread")
+        } else {
+            Log.e(TAG, "❌ Erro ao inicializar ModelLoader")
         }
     }
 
@@ -194,10 +198,17 @@ class ModelLoader(
      * Cleanup - destroi loaders NA THREAD GL
      */
     fun destroy() {
-        FilamentEngineManager.runOnGLThread {
+        FilamentEngineManager.runOnGLThreadBlocking {
             try {
+                resourceLoader?.asyncCancelLoad()
+                resourceLoader?.evictResourceData()
+
                 assetLoader?.destroy()
                 assetLoader = null
+
+                materialProvider?.destroyMaterials()
+                materialProvider = null
+
                 resourceLoader = null
                 isInitialized = false
                 Log.d(TAG, "✅ ModelLoader destruído")
@@ -207,4 +218,3 @@ class ModelLoader(
         }
     }
 }
-

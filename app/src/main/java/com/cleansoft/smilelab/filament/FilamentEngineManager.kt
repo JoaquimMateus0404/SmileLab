@@ -125,8 +125,15 @@ object FilamentEngineManager {
      * Executa código na thread GL
      */
     fun runOnGLThread(block: () -> Unit) {
-        handler?.post(block) ?: run {
+        val h = handler ?: run {
             Log.e(TAG, "⚠️ Handler GL não disponível")
+            return
+        }
+
+        if (isOnGLThread()) {
+            block()
+        } else {
+            h.post(block)
         }
     }
 
@@ -134,16 +141,26 @@ object FilamentEngineManager {
      * Executa código na thread GL e aguarda resultado (síncrono)
      */
     fun <T> runOnGLThreadBlocking(block: () -> T): T? {
-        if (handler == null) {
+        val h = handler ?: run {
             Log.e(TAG, "⚠️ Handler GL não disponível")
             return null
+        }
+
+        // Evita deadlock quando chamado da própria thread GL
+        if (isOnGLThread()) {
+            return try {
+                block()
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Erro ao executar na GL thread", e)
+                throw e
+            }
         }
 
         val latch = CountDownLatch(1)
         var result: T? = null
         var exception: Exception? = null
 
-        handler!!.post {
+        h.post {
             try {
                 result = block()
             } catch (e: Exception) {
