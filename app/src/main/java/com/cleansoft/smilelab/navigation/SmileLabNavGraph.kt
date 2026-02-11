@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.cleansoft.smilelab.data.repository.UserPreferencesRepository
 import com.cleansoft.smilelab.ui.screens.home.HomeScreen
 import com.cleansoft.smilelab.ui.screens.hygiene.BrushingGuideScreen
 import com.cleansoft.smilelab.ui.screens.hygiene.FlossingGuideScreen
@@ -29,7 +30,8 @@ import kotlinx.coroutines.flow.Flow
 fun SmileLabNavGraph(
     navController: NavHostController,
     isOnboardingCompleted: Flow<Boolean>,
-    onOnboardingComplete: () -> Unit
+    onOnboardingComplete: () -> Unit,
+    userPreferencesRepository: UserPreferencesRepository
 ) {
     val onboardingCompleted by isOnboardingCompleted.collectAsState(initial = null)
 
