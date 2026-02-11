@@ -20,6 +20,7 @@ sealed class Screen(val route: String) {
 
     // Visualização 3D
     data object Teeth3DViewer : Screen("teeth_3d_viewer")
+    data object Gallery3D : Screen("gallery_3d")
     data object ToothDetail : Screen("tooth_detail/{toothId}") {
         fun createRoute(toothId: Int) = "tooth_detail/$toothId"
     }
@@ -35,6 +36,9 @@ sealed class Screen(val route: String) {
     data object EditReminder : Screen("edit_reminder/{reminderId}") {
         fun createRoute(reminderId: Long) = "edit_reminder/$reminderId"
     }
+
+    // Conquistas e Progresso
+    data object Achievements : Screen("achievements")
 
     // Conteúdo detalhe
     data object ContentDetail : Screen("content_detail/{contentId}") {

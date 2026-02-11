@@ -21,6 +21,8 @@ import com.cleansoft.smilelab.ui.screens.routine.RoutineHabitsScreen
 import com.cleansoft.smilelab.ui.screens.settings.SettingsScreen
 import com.cleansoft.smilelab.ui.screens.splash.SplashScreen
 import com.cleansoft.smilelab.ui.screens.viewer3d.Teeth3DViewerScreen
+import com.cleansoft.smilelab.ui.screens.gallery3d.Gallery3DScreen
+import com.cleansoft.smilelab.ui.screens.achievements.AchievementsScreen
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -76,6 +78,8 @@ fun SmileLabNavGraph(
                 onNavigateToDentalProblems = { navController.navigate(Screen.DentalProblems.route) },
                 onNavigateToRoutineHabits = { navController.navigate(Screen.RoutineHabits.route) },
                 onNavigateTo3DViewer = { navController.navigate(Screen.Teeth3DViewer.route) },
+                onNavigateToGallery3D = { navController.navigate(Screen.Gallery3D.route) },
+                onNavigateToAchievements = { navController.navigate(Screen.Achievements.route) },
                 onNavigateToReminders = { navController.navigate(Screen.Reminders.route) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
             )
@@ -150,6 +154,20 @@ fun SmileLabNavGraph(
 
         composable(Screen.AddReminder.route) {
             AddReminderScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        // Galeria 3D
+        composable(Screen.Gallery3D.route) {
+            Gallery3DScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        // Conquistas
+        composable(Screen.Achievements.route) {
+            AchievementsScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }

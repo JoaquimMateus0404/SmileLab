@@ -1,5 +1,6 @@
 package com.cleansoft.smilelab.ui.screens.home
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -27,6 +28,7 @@ import com.cleansoft.smilelab.data.local.SmileLabDatabase
 import com.cleansoft.smilelab.data.repository.ProgressStats
 import com.cleansoft.smilelab.data.repository.UserProgressRepository
 import com.cleansoft.smilelab.ui.components.UserProgressCard
+import com.cleansoft.smilelab.ui.components.DailyTipCard
 import com.cleansoft.smilelab.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -88,6 +90,8 @@ fun HomeScreen(
     onNavigateToDentalProblems: () -> Unit,
     onNavigateToRoutineHabits: () -> Unit,
     onNavigateTo3DViewer: () -> Unit,
+    onNavigateToGallery3D: () -> Unit,
+    onNavigateToAchievements: () -> Unit,
     onNavigateToReminders: () -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
@@ -132,6 +136,13 @@ fun HomeScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onNavigateToAchievements) {
+                        Icon(
+                            imageVector = Icons.Outlined.EmojiEvents,
+                            contentDescription = "Conquistas",
+                            tint = SmilePrimary
+                        )
+                    }
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(
                             imageVector = Icons.Outlined.Settings,
@@ -162,9 +173,19 @@ fun HomeScreen(
                 UserProgressCard(progressStats = progressStats)
             }
 
+            // Dica do Dia
+            item {
+                DailyTipCard()
+            }
+
             // Card de visualização 3D
             item {
                 Feature3DCard(onClick = onNavigateTo3DViewer)
+            }
+
+            // Botão para Galeria 3D
+            item {
+                GalleryButton(onClick = onNavigateToGallery3D)
             }
 
             // Título dos módulos
@@ -196,6 +217,53 @@ fun HomeScreen(
             item {
                 DisclaimerCard()
             }
+        }
+    }
+}
+
+@Composable
+fun GalleryButton(onClick: () -> Unit) {
+    OutlinedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(2.dp, SmilePrimary.copy(alpha = 0.5f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.Collections,
+                    contentDescription = null,
+                    tint = SmilePrimary,
+                    modifier = Modifier.size(32.dp)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text(
+                        text = "🎨 Galeria 3D",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = SmilePrimary
+                    )
+                    Text(
+                        text = "Explore todos os modelos dentários",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = "Abrir",
+                tint = SmilePrimary
+            )
         }
     }
 }
