@@ -44,6 +44,12 @@ class FilamentSceneManager(
     private var isDestroyed = false
     private var cameraManipulator: Manipulator? = null
     private var previousPinchDistance: Float = 0f  // Para controle de zoom
+    private var mainLightEntity: Int? = null
+    private var fillLightEntity: Int? = null
+    private var backLightEntity: Int? = null
+    private var indirectLightIntensity: Float = 30000f
+    private var skyboxColor: FloatArray = floatArrayOf(0.4f, 0.4f, 0.45f, 1f)
+    private var currentModelKey: String? = null
 
     // Rendering
     private val choreographer = Choreographer.getInstance()
@@ -183,6 +189,7 @@ class FilamentSceneManager(
 
         // Luz direcional principal (sol)
         val sunEntity = eng.entityManager.create()
+        mainLightEntity = sunEntity
         LightManager.Builder(LightManager.Type.DIRECTIONAL)
             .color(1f, 0.98f, 0.95f)  // Luz levemente quente
             .intensity(50000f)  // Reduzido de 100000f
@@ -193,6 +200,7 @@ class FilamentSceneManager(
 
         // Luz de preenchimento (fill light) - para suavizar sombras
         val fillEntity = eng.entityManager.create()
+        fillLightEntity = fillEntity
         LightManager.Builder(LightManager.Type.DIRECTIONAL)
             .color(0.8f, 0.9f, 1.0f)  // Luz azulada
             .intensity(20000f)
@@ -203,6 +211,7 @@ class FilamentSceneManager(
 
         // Luz de fundo (back light)
         val backEntity = eng.entityManager.create()
+        backLightEntity = backEntity
         LightManager.Builder(LightManager.Type.DIRECTIONAL)
             .color(1f, 1f, 1f)
             .intensity(15000f)
@@ -214,7 +223,7 @@ class FilamentSceneManager(
         // IndirectLight (iluminação ambiente) - CRÍTICO para materiais PBR
         try {
             val ibl = IndirectLight.Builder()
-                .intensity(30000f)  // Iluminação ambiente
+                .intensity(indirectLightIntensity)  // Iluminação ambiente
                 .build(eng)
             scn.indirectLight = ibl
             Log.d(TAG, "✅ IndirectLight configurado")
@@ -224,7 +233,7 @@ class FilamentSceneManager(
 
         // Skybox com cor neutra
         val skybox = Skybox.Builder()
-            .color(0.4f, 0.4f, 0.45f, 1f)  // Mais escuro para não ofuscar
+            .color(skyboxColor[0], skyboxColor[1], skyboxColor[2], skyboxColor[3])
             .build(eng)
         scn.skybox = skybox
 
@@ -286,6 +295,7 @@ class FilamentSceneManager(
     fun loadModel(
         path: String,
         key: String = path,
+        replaceCurrent: Boolean = true,
         onProgress: (Float) -> Unit = {},
         onSuccess: (FilamentAsset) -> Unit = {},
         onError: (Exception) -> Unit = {}
@@ -317,8 +327,15 @@ class FilamentSceneManager(
                 // Adicionar à cena na GL thread
                 FilamentEngineManager.runOnGLThread {
                     try {
+                        if (replaceCurrent) {
+                            currentModelKey?.let { previousKey ->
+                                removeAssetFromScene(previousKey)
+                            }
+                        }
+
                         scene?.addEntities(asset.entities)
                         resourceManager.registerAsset(key, asset)
+                        currentModelKey = key
 
                         // Centralizar modelo
                         centerModel(asset)
@@ -392,6 +409,68 @@ class FilamentSceneManager(
                 .build(Manipulator.Mode.ORBIT)
 
             Log.d(TAG, "🔄 Câmera resetada")
+        }
+    }
+
+    /**
+     * Ajusta intensidade da luz principal.
+     */
+    fun setMainLightIntensity(intensity: Float) {
+        val eng = engine ?: return
+        val lightEntity = mainLightEntity ?: return
+
+        FilamentEngineManager.runOnGLThread {
+            runCatching {
+                val instance = eng.lightManager.getInstance(lightEntity)
+                eng.lightManager.setIntensity(instance, intensity.coerceIn(1_000f, 120_000f))
+            }.onFailure { Log.e(TAG, "⚠️ Erro ao atualizar luz principal", it) }
+        }
+    }
+
+    /**
+     * Ajusta intensidade da iluminação ambiente (IBL).
+     */
+    fun setIndirectLightIntensity(intensity: Float) {
+        val eng = engine ?: return
+        val scn = scene ?: return
+        indirectLightIntensity = intensity.coerceIn(5_000f, 60_000f)
+
+        FilamentEngineManager.runOnGLThread {
+            runCatching {
+                scn.indirectLight?.let { eng.destroyIndirectLight(it) }
+                scn.indirectLight = IndirectLight.Builder()
+                    .intensity(indirectLightIntensity)
+                    .build(eng)
+            }.onFailure { Log.e(TAG, "⚠️ Erro ao atualizar IBL", it) }
+        }
+    }
+
+    /**
+     * Ajusta a cor do skybox para criar variações visuais.
+     */
+    fun setSkyboxColor(r: Float, g: Float, b: Float) {
+        val eng = engine ?: return
+        val scn = scene ?: return
+        skyboxColor = floatArrayOf(r.coerceIn(0f, 1f), g.coerceIn(0f, 1f), b.coerceIn(0f, 1f), 1f)
+
+        FilamentEngineManager.runOnGLThread {
+            runCatching {
+                scn.skybox?.let { eng.destroySkybox(it) }
+                scn.skybox = Skybox.Builder()
+                    .color(skyboxColor[0], skyboxColor[1], skyboxColor[2], skyboxColor[3])
+                    .build(eng)
+            }.onFailure { Log.e(TAG, "⚠️ Erro ao atualizar skybox", it) }
+        }
+    }
+
+    private fun removeAssetFromScene(key: String) {
+        val scn = scene ?: return
+        val loader = modelLoader ?: return
+
+        resourceManager.getAsset(key)?.let { asset ->
+            scn.removeEntities(asset.entities)
+            resourceManager.destroyAsset(key, loader)
+            if (currentModelKey == key) currentModelKey = null
         }
     }
 
