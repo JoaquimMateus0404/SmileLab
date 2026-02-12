@@ -2,6 +2,7 @@ package com.cleansoft.smilelab.ui.animations
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
@@ -66,8 +67,7 @@ fun shimmerAnimation(): InfiniteRepeatableSpec<Float> {
 // Transição de conteúdo com fade
 @OptIn(ExperimentalAnimationApi::class)
 fun <T> fadeTransition(): ContentTransform {
-    return fadeIn(animationSpec = tween(220, delayMillis = 90)) with
-            fadeOut(animationSpec = tween(90))
+    return fadeIn(animationSpec = tween(220, delayMillis = 90)).togetherWith(fadeOut(animationSpec = tween(90)))
 }
 
 // Shake animation para erros
