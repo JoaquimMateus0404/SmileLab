@@ -1,28 +1,76 @@
 package com.cleansoft.smilelab.ui.screens.viewer3d
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.weight
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.PanTool
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.cleansoft.smilelab.data.model.TeethModelType
+import com.cleansoft.smilelab.filament.FilamentSceneManager
 import com.cleansoft.smilelab.ui.components.FilamentViewer3D
 import com.cleansoft.smilelab.ui.theme.SmilePrimary
 import com.cleansoft.smilelab.ui.theme.SmileSecondary
 
-/**
- * Tela de Visualização 3D dos Dentes
- * Usa Filament Engine para renderização 3D
- */
+private data class ViewerModelOption(
+    val id: String,
+    val displayName: String,
+    val modelPath: String
+)
+
+private val viewerModelOptions = listOf(
+    ViewerModelOption("default", "Dente em destaque", "models/inside_my_tooth.glb"),
+    ViewerModelOption("molar", TeethModelType.MOLAR.displayName, "models/inside_my_tooth.glb"),
+    ViewerModelOption("incisor", TeethModelType.INCISOR.displayName, "models/inside_my_tooth.glb"),
+    ViewerModelOption("canine", TeethModelType.CANINE.displayName, "models/inside_my_tooth.glb"),
+    ViewerModelOption("section", TeethModelType.TOOTH_SECTION.displayName, "models/inside_my_tooth.glb")
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Teeth3DViewerScreen(
@@ -30,18 +78,17 @@ fun Teeth3DViewerScreen(
 ) {
     var hasError by remember { mutableStateOf(false) }
     var isModelLoaded by remember { mutableStateOf(false) }
-    var sceneManager by remember { mutableStateOf<com.cleansoft.smilelab.filament.FilamentSceneManager?>(null) }
+    var sceneManager by remember { mutableStateOf<FilamentSceneManager?>(null) }
+    var selectedModel by remember { mutableStateOf(viewerModelOptions.first()) }
+    var mainLightIntensity by remember { mutableFloatStateOf(50_000f) }
+    var ambientLightIntensity by remember { mutableFloatStateOf(30_000f) }
+    var skyboxTone by remember { mutableFloatStateOf(0.4f) }
+    var autoRotateHint by remember { mutableStateOf(true) }
 
-
-    Scaffold(
+    androidx.compose.material3.Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        text = "Visualização 3D",
-                        fontWeight = FontWeight.Bold
-                    )
-                },
+                title = { Text(text = "Visualização 3D", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
@@ -58,7 +105,6 @@ fun Teeth3DViewerScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Área do visualizador 3D com Filament
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -67,101 +113,69 @@ fun Teeth3DViewerScreen(
                 if (!hasError) {
                     FilamentViewer3D(
                         modifier = Modifier.fillMaxSize(),
-                        modelPath = "models/inside_my_tooth.glb",
+                        modelPath = selectedModel.modelPath,
                         onModelLoaded = {
-                            android.util.Log.d("Teeth3DViewer", "✅ Modelo 3D carregado!")
                             isModelLoaded = true
+                            hasError = false
                         },
-                        onError = { error ->
-                            android.util.Log.e("Teeth3DViewer", "❌ Erro ao carregar 3D", error)
+                        onError = {
                             hasError = true
                         },
                         onSceneManagerReady = { manager ->
                             sceneManager = manager
-                            android.util.Log.d("Teeth3DViewer", "✅ SceneManager pronto para controles")
+                            manager.setMainLightIntensity(mainLightIntensity)
+                            manager.setIndirectLightIntensity(ambientLightIntensity)
+                            manager.setSkyboxColor(skyboxTone, skyboxTone, (skyboxTone + 0.05f).coerceAtMost(1f))
                         }
                     )
 
-                    // Instruções overlay (mostrar quando modelo estiver carregado)
                     if (isModelLoaded) {
-                        // Controles de zoom (lado esquerdo)
                         Column(
                             modifier = Modifier
                                 .align(Alignment.CenterStart)
                                 .padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Zoom In
                             FloatingActionButton(
-                                onClick = {
-                                    sceneManager?.getCameraManipulator()?.scroll(0, 0, -2f)
-                                    android.util.Log.d("Teeth3DViewer", "🔍 Zoom In")
-                                },
+                                onClick = { sceneManager?.getCameraManipulator()?.scroll(0, 0, -2f) },
                                 containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
                                 contentColor = SmilePrimary,
                                 modifier = Modifier.size(48.dp)
-                            ) {
-                                Icon(Icons.Filled.Add, contentDescription = "Zoom In")
-                            }
+                            ) { Icon(Icons.Filled.Add, contentDescription = "Zoom In") }
 
-                            // Zoom Out
                             FloatingActionButton(
-                                onClick = {
-                                    sceneManager?.getCameraManipulator()?.scroll(0, 0, 2f)
-                                    android.util.Log.d("Teeth3DViewer", "🔍 Zoom Out")
-                                },
+                                onClick = { sceneManager?.getCameraManipulator()?.scroll(0, 0, 2f) },
                                 containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
                                 contentColor = SmilePrimary,
                                 modifier = Modifier.size(48.dp)
-                            ) {
-                                Icon(Icons.Filled.Remove, contentDescription = "Zoom Out")
-                            }
+                            ) { Icon(Icons.Filled.Remove, contentDescription = "Zoom Out") }
 
-                            // Reset View
                             FloatingActionButton(
-                                onClick = {
-                                    sceneManager?.resetCamera()
-                                    android.util.Log.d("Teeth3DViewer", "🔄 Reset View")
-                                },
+                                onClick = { sceneManager?.resetCamera() },
                                 containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
                                 contentColor = SmilePrimary,
                                 modifier = Modifier.size(48.dp)
-                            ) {
-                                Icon(Icons.Filled.Refresh, contentDescription = "Reset")
-                            }
+                            ) { Icon(Icons.Filled.Refresh, contentDescription = "Reset") }
                         }
 
-                        // Instruções (canto superior direito)
                         Surface(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
                                 .padding(8.dp),
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
                             shape = RoundedCornerShape(8.dp),
                             tonalElevation = 2.dp
                         ) {
-                            Column(
-                                modifier = Modifier.padding(8.dp)
-                            ) {
-                                InteractionHint(
-                                    icon = Icons.Filled.TouchApp,
-                                    text = "1 dedo: rotacionar"
-                                )
-                                InteractionHint(
-                                    icon = Icons.Filled.ZoomIn,
-                                    text = "Pinça: zoom"
-                                )
-                                InteractionHint(
-                                    icon = Icons.Filled.PanTool,
-                                    text = "2 dedos: mover"
-                                )
+                            Column(modifier = Modifier.padding(8.dp)) {
+                                InteractionHint(icon = Icons.Filled.TouchApp, text = "1 dedo: rotacionar")
+                                InteractionHint(icon = Icons.Filled.ZoomIn, text = "Pinça: zoom")
+                                InteractionHint(icon = Icons.Filled.PanTool, text = "2 dedos: mover")
                             }
                         }
                     }
                 }
 
                 if (hasError) {
-                    // Fallback UI quando o modelo não carrega
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -175,68 +189,168 @@ fun Teeth3DViewerScreen(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(32.dp)
-                        ) {
-                            Text(
-                                text = "🦷",
-                                fontSize = 100.sp
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = "Visualizador 3D em Desenvolvimento",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "A visualização 3D interativa dos dentes será implementada em breve com Filament Engine. Por enquanto, explore as outras funcionalidades do app!",
-                                style = MaterialTheme.typography.bodyMedium,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                            )
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            Surface(
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(16.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = "Como usar quando disponível:",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    InteractionHint(
-                                        icon = Icons.Filled.TouchApp,
-                                        text = "Arraste para rotacionar"
-                                    )
-                                    InteractionHint(
-                                        icon = Icons.Filled.ZoomIn,
-                                        text = "Pinça para zoom"
-                                    )
-                                }
-                            }
-                        }
+                        Text(
+                            text = "Não foi possível carregar o modelo 3D selecionado.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(24.dp)
+                        )
                     }
                 }
             }
 
-            // Painel de controles
-            ControlPanel()
+            ViewerControlPanel(
+                selectedModel = selectedModel,
+                modelOptions = viewerModelOptions,
+                onModelSelected = {
+                    selectedModel = it
+                    isModelLoaded = false
+                },
+                mainLightIntensity = mainLightIntensity,
+                onMainLightIntensityChange = {
+                    mainLightIntensity = it
+                    sceneManager?.setMainLightIntensity(it)
+                },
+                ambientLightIntensity = ambientLightIntensity,
+                onAmbientLightIntensityChange = {
+                    ambientLightIntensity = it
+                    sceneManager?.setIndirectLightIntensity(it)
+                },
+                skyboxTone = skyboxTone,
+                onSkyboxToneChange = {
+                    skyboxTone = it
+                    sceneManager?.setSkyboxColor(it, it, (it + 0.05f).coerceAtMost(1f))
+                },
+                autoRotateHint = autoRotateHint,
+                onAutoRotateHintChange = { autoRotateHint = it },
+                onReset = {
+                    sceneManager?.resetCamera()
+                    mainLightIntensity = 50_000f
+                    ambientLightIntensity = 30_000f
+                    skyboxTone = 0.4f
+                    sceneManager?.setMainLightIntensity(mainLightIntensity)
+                    sceneManager?.setIndirectLightIntensity(ambientLightIntensity)
+                    sceneManager?.setSkyboxColor(skyboxTone, skyboxTone, (skyboxTone + 0.05f).coerceAtMost(1f))
+                }
+            )
         }
     }
 }
 
 @Composable
+private fun ViewerControlPanel(
+    selectedModel: ViewerModelOption,
+    modelOptions: List<ViewerModelOption>,
+    onModelSelected: (ViewerModelOption) -> Unit,
+    mainLightIntensity: Float,
+    onMainLightIntensityChange: (Float) -> Unit,
+    ambientLightIntensity: Float,
+    onAmbientLightIntensityChange: (Float) -> Unit,
+    skyboxTone: Float,
+    onSkyboxToneChange: (Float) -> Unit,
+    autoRotateHint: Boolean,
+    onAutoRotateHintChange: (Boolean) -> Unit,
+    onReset: () -> Unit
+) {
+    Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 4.dp) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Modelos", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(modelOptions, key = { it.id }) { option ->
+                    val selected = option.id == selectedModel.id
+                    AssistChip(
+                        onClick = { onModelSelected(option) },
+                        label = { Text(option.displayName) },
+                        leadingIcon = {
+                            if (selected) {
+                                Icon(Icons.Filled.Refresh, contentDescription = null)
+                            }
+                        },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = if (selected) SmilePrimary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    )
+                }
+            }
+
+            ControlSlider(
+                icon = Icons.Filled.WbSunny,
+                title = "Luz principal",
+                value = mainLightIntensity,
+                valueRange = 10_000f..110_000f,
+                onValueChange = onMainLightIntensityChange
+            )
+
+            ControlSlider(
+                icon = Icons.Filled.Palette,
+                title = "Luz ambiente",
+                value = ambientLightIntensity,
+                valueRange = 5_000f..60_000f,
+                onValueChange = onAmbientLightIntensityChange
+            )
+
+            ControlSlider(
+                icon = Icons.Filled.Palette,
+                title = "Cor de fundo",
+                value = skyboxTone,
+                valueRange = 0.1f..0.8f,
+                onValueChange = onSkyboxToneChange
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Dicas de interação", style = MaterialTheme.typography.bodyMedium)
+                Switch(
+                    checked = autoRotateHint,
+                    onCheckedChange = onAutoRotateHintChange,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = SmilePrimary,
+                        checkedTrackColor = SmilePrimary.copy(alpha = 0.5f)
+                    )
+                )
+            }
+
+            androidx.compose.material3.OutlinedButton(
+                onClick = onReset,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.size(8.dp))
+                Text("Resetar câmera e luz")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ControlSlider(
+    icon: ImageVector,
+    title: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    onValueChange: (Float) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(icon, contentDescription = null, tint = SmilePrimary, modifier = Modifier.size(16.dp))
+            Text(title, style = MaterialTheme.typography.labelLarge)
+            Spacer(modifier = Modifier.weight(1f))
+            Text(value.toInt().toString(), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+        }
+        Slider(value = value, onValueChange = onValueChange, valueRange = valueRange)
+    }
+}
+
+@Composable
 fun InteractionHint(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     text: String
 ) {
     Row(
@@ -249,127 +363,7 @@ fun InteractionHint(
             modifier = Modifier.size(16.dp),
             tint = SmilePrimary
         )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall
-        )
+        Spacer(modifier = Modifier.size(4.dp))
+        Text(text = text, style = MaterialTheme.typography.labelSmall)
     }
 }
-
-@Composable
-fun ControlPanel() {
-    var selectedView by remember { mutableStateOf("full") }
-    var showLabels by remember { mutableStateOf(true) }
-
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 4.dp
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            // Seletor de visualização
-            Text(
-                text = "Visualização",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ViewButton(
-                    text = "Completa",
-                    selected = selectedView == "full",
-                    onClick = { selectedView = "full" },
-                    modifier = Modifier.weight(1f)
-                )
-                ViewButton(
-                    text = "Superior",
-                    selected = selectedView == "upper",
-                    onClick = { selectedView = "upper" },
-                    modifier = Modifier.weight(1f)
-                )
-                ViewButton(
-                    text = "Inferior",
-                    selected = selectedView == "lower",
-                    onClick = { selectedView = "lower" },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Toggle de labels
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Mostrar nomes dos dentes",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Switch(
-                    checked = showLabels,
-                    onCheckedChange = { showLabels = it },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = SmilePrimary,
-                        checkedTrackColor = SmilePrimary.copy(alpha = 0.5f)
-                    )
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Botão de reset
-            OutlinedButton(
-                onClick = { /* Reset view */ },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Refresh,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Resetar visualização")
-            }
-        }
-    }
-}
-
-@Composable
-fun ViewButton(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    if (selected) {
-        Button(
-            onClick = onClick,
-            modifier = modifier,
-            shape = RoundedCornerShape(8.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = SmilePrimary
-            )
-        ) {
-            Text(text, style = MaterialTheme.typography.labelMedium)
-        }
-    } else {
-        OutlinedButton(
-            onClick = onClick,
-            modifier = modifier,
-            shape = RoundedCornerShape(8.dp)
-        ) {
-            Text(text, style = MaterialTheme.typography.labelMedium)
-        }
-    }
-}
-

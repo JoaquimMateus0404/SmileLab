@@ -27,8 +27,8 @@ fun FilamentViewer3D(
 ) {
     var sceneManager by remember { mutableStateOf<FilamentSceneManager?>(null) }
     var isLoading by remember { mutableStateOf(true) }
-    var hasError by remember { mutableStateOf(false) }
     var progress by remember { mutableFloatStateOf(0f) }
+    var loadedPath by remember { mutableStateOf<String?>(null) }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -48,7 +48,6 @@ fun FilamentViewer3D(
                     // Inicializar cena
                     manager.initialize(
                         onSuccess = {
-                            // Carregar modelo
                             manager.loadModel(
                                 path = modelPath,
                                 onProgress = { prog ->
@@ -56,19 +55,18 @@ fun FilamentViewer3D(
                                 },
                                 onSuccess = {
                                     isLoading = false
+                                    loadedPath = modelPath
                                     onModelLoaded()
-                                    onSceneManagerReady(manager)  // Notificar que está pronto
+                                    onSceneManagerReady(manager)
                                 },
                                 onError = { e ->
                                     isLoading = false
-                                    hasError = true
                                     onError(e)
                                 }
                             )
                         },
                         onError = { e ->
                             isLoading = false
-                            hasError = true
                             onError(e)
                         }
                     )
@@ -81,6 +79,31 @@ fun FilamentViewer3D(
                 }
             }
         )
+
+        // Quando modelPath muda, troca o modelo sem recriar a cena
+        LaunchedEffect(modelPath, sceneManager) {
+            val manager = sceneManager ?: return@LaunchedEffect
+            if (loadedPath == null || loadedPath == modelPath) return@LaunchedEffect
+
+            isLoading = true
+            progress = 0f
+
+            manager.loadModel(
+                path = modelPath,
+                key = modelPath,
+                replaceCurrent = true,
+                onProgress = { prog -> progress = prog },
+                onSuccess = {
+                    loadedPath = modelPath
+                    isLoading = false
+                    onModelLoaded()
+                },
+                onError = { e ->
+                    isLoading = false
+                    onError(e)
+                }
+            )
+        }
 
         // Indicador de carregamento
         if (isLoading) {
@@ -151,4 +174,3 @@ private fun handleTouch(manager: FilamentSceneManager, event: MotionEvent): Bool
 
     return true
 }
-
