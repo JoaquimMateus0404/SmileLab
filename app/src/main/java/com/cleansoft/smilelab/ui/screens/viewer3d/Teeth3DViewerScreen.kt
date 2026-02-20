@@ -65,30 +65,71 @@ private data class ViewerModelOption(
 private val viewerModelOptions = listOf(
 
     ViewerModelOption(
-        "incisor",
-        TeethModelType.MAXILLARY_LEFT_CENTRAL_INCISOR.displayName,
-        "models/${TeethModelType.MAXILLARY_LEFT_CENTRAL_INCISOR.fileName}"
+        "mandibular_first_premolar",
+        TeethModelType.MANDIBULAR_FIRST_PREMOLAR.displayName,
+        "models/${TeethModelType.MANDIBULAR_FIRST_PREMOLAR.fileName}"
     ),
+
     ViewerModelOption(
-        "permanent",
-        TeethModelType.PERMANENT_DENTITION.displayName,
-        "models/${TeethModelType.PERMANENT_DENTITION.fileName}"
+        "mandibular_left_canine",
+        TeethModelType.MANDIBULAR_LEFT_CANINE.displayName,
+        "models/${TeethModelType.MANDIBULAR_LEFT_CANINE.fileName}"
     ),
+
     ViewerModelOption(
-        "canine",
+        "mandibular_second_molar",
+        TeethModelType.MANDIBULAR_SECOND_MOLAR.displayName,
+        "models/${TeethModelType.MANDIBULAR_SECOND_MOLAR.fileName}"
+    ),
+
+    ViewerModelOption(
+        "mandibular_third_molar",
+        TeethModelType.MANDIBULAR_THIRD_MOLAR.displayName,
+        "models/${TeethModelType.MANDIBULAR_THIRD_MOLAR.fileName}"
+    ),
+
+    ViewerModelOption(
+        "maxillary_canine",
         TeethModelType.MAXILLARY_CANINE.displayName,
         "models/${TeethModelType.MAXILLARY_CANINE.fileName}"
     ),
+
     ViewerModelOption(
-        "molar",
+        "maxillary_first_molar",
         TeethModelType.MAXILLARY_FIRST_MOLAR.displayName,
         "models/${TeethModelType.MAXILLARY_FIRST_MOLAR.fileName}"
     ),
+
     ViewerModelOption(
-        "premolar",
-        TeethModelType.MANDIBULAR_FIRST_PREMOLAR.displayName,
-        "models/${TeethModelType.MANDIBULAR_FIRST_PREMOLAR.fileName}"
+        "maxillary_first_molar_carabelli",
+        TeethModelType.MAXILLARY_FIRST_MOLAR_WITH_CUSP_OF_CARABELLII.displayName,
+        "models/${TeethModelType.MAXILLARY_FIRST_MOLAR_WITH_CUSP_OF_CARABELLII.fileName}"
+    ),
+
+    ViewerModelOption(
+        "maxillary_first_premolar",
+        TeethModelType.MAXILLARY_FIRST_PREMOLAR.displayName,
+        "models/${TeethModelType.MAXILLARY_FIRST_PREMOLAR.fileName}"
+    ),
+
+    ViewerModelOption(
+        "maxillary_left_central_incisor",
+        TeethModelType.MAXILLARY_LEFT_CENTRAL_INCISOR.displayName,
+        "models/${TeethModelType.MAXILLARY_LEFT_CENTRAL_INCISOR.fileName}"
+    ),
+
+    ViewerModelOption(
+        "maxillary_second_molar",
+        TeethModelType.MAXILLARY_SECOND_MOLAR.displayName,
+        "models/${TeethModelType.MAXILLARY_SECOND_MOLAR.fileName}"
+    ),
+
+    ViewerModelOption(
+        "permanent_dentition",
+        TeethModelType.PERMANENT_DENTITION.displayName,
+        "models/${TeethModelType.PERMANENT_DENTITION.fileName}"
     )
+
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

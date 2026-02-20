@@ -134,11 +134,17 @@ private fun handleTouch(manager: FilamentSceneManager, event: MotionEvent): Bool
                 val x = (event.getX(0) + event.getX(1)) / 2
                 val y = (event.getY(0) + event.getY(1)) / 2
                 manipulator.grabBegin(x.toInt(), y.toInt(), true)  // strafe = true para pan
+
+                // Inicializa a distância anterior do pinch para evitar um salto grande no primeiro movimento
+                val dxInit = event.getX(0) - event.getX(1)
+                val dyInit = event.getY(0) - event.getY(1)
+                val initDistance = kotlin.math.sqrt(dxInit * dxInit + dyInit * dyInit)
+                manager.setPreviousPinchDistance(initDistance)
             }
         }
 
         MotionEvent.ACTION_MOVE -> {
-            if (event.pointerCount == 2) {
+            if (event.pointerCount >= 2) {
                 // Calcular centro entre os dois dedos
                 val x = (event.getX(0) + event.getX(1)) / 2
                 val y = (event.getY(0) + event.getY(1)) / 2
@@ -148,11 +154,16 @@ private fun handleTouch(manager: FilamentSceneManager, event: MotionEvent): Bool
                 val dy = event.getY(0) - event.getY(1)
                 val distance = kotlin.math.sqrt(dx * dx + dy * dy)
 
-                // Scroll para zoom (valores negativos = zoom in)
+                // Usar razão entre distâncias para tornar o zoom independente de dpi
                 val previousDistance = manager.getPreviousPinchDistance()
-                if (previousDistance > 0) {
-                    val delta = distance - previousDistance
-                    manipulator.scroll(0, 0, delta * 0.05f)
+                if (previousDistance > 0f && distance > 0f) {
+                    val ratio = distance / previousDistance
+                    if (ratio.isFinite() && ratio > 0f) {
+                        // Quando os dedos se afastam (ratio > 1), queremos scroll negativo (zoom in)
+                        val zoomSensitivity = 6f
+                        val zoomDelta = kotlin.math.ln(ratio) * zoomSensitivity
+                        manipulator.scroll(0, 0, -zoomDelta)
+                    }
                 }
                 manager.setPreviousPinchDistance(distance)
 
@@ -167,8 +178,17 @@ private fun handleTouch(manager: FilamentSceneManager, event: MotionEvent): Bool
         MotionEvent.ACTION_UP,
         MotionEvent.ACTION_POINTER_UP,
         MotionEvent.ACTION_CANCEL -> {
+            // Finaliza o grab atual
             manipulator.grabEnd()
-            manager.setPreviousPinchDistance(0f)
+            // Se sobrar 1 dedo, retoma o modo de rotação com o dedo restante
+            val remaining = event.pointerCount - 1
+            if (remaining == 1) {
+                // index do dedo que permaneceu (0 ou 1)
+                val remainingIndex = if (event.actionIndex == 0) 1 else 0
+                manipulator.grabBegin(event.getX(remainingIndex).toInt(), event.getY(remainingIndex).toInt(), false)
+            } else {
+                manager.setPreviousPinchDistance(0f)
+            }
         }
     }
 
