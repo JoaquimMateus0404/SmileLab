@@ -20,7 +20,7 @@ import com.cleansoft.smilelab.filament.FilamentSceneManager
 @Composable
 fun FilamentViewer3D(
     modifier: Modifier = Modifier,
-    modelPath: String = "models/cavidade_classe_ii__mo__dente_16.glb",
+    modelPath: String = "models/permanent_dentition.glb",
     onModelLoaded: () -> Unit = {},
     onError: (Exception) -> Unit = {},
     onSceneManagerReady: (FilamentSceneManager) -> Unit = {}

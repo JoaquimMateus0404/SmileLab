@@ -1,6 +1,10 @@
 package com.cleansoft.smilelab.ui.screens.gallery3d
 
+import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.util.LruCache
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -30,10 +34,60 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onGloballyPositioned
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.cleansoft.smilelab.data.model.TeethModel3D
 import com.cleansoft.smilelab.data.model.TeethModelType
 import com.cleansoft.smilelab.ui.theme.SmilePrimary
 import com.cleansoft.smilelab.ui.theme.SmileSecondary
+
+private sealed interface LoadResult {
+    object Loading : LoadResult
+    data class Success(val bitmap: Bitmap) : LoadResult
+    object Error : LoadResult
+}
+
+private fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
+    val height = options.outHeight
+    val width = options.outWidth
+    var inSampleSize = 1
+
+    if (height > reqHeight || width > reqWidth) {
+        val halfHeight = height / 2
+        val halfWidth = width / 2
+
+        while ((halfHeight / inSampleSize) >= reqHeight && (halfWidth / inSampleSize) >= reqWidth) {
+            inSampleSize *= 2
+        }
+    }
+    return inSampleSize
+}
+
+private suspend fun decodeBitmapFromAsset(context: Context, assetPath: String, reqWidth: Int, reqHeight: Int): Bitmap? {
+    return withContext(Dispatchers.IO) {
+        try {
+            // First decode with inJustDecodeBounds=true to check dimensions
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.assets.open(assetPath).use { stream ->
+                BitmapFactory.decodeStream(stream, null, options)
+            }
+
+            // Calculate inSampleSize
+            options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight)
+
+            // Decode bitmap with inSampleSize set
+            options.inJustDecodeBounds = false
+            context.assets.open(assetPath).use { stream ->
+                BitmapFactory.decodeStream(stream, null, options)
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,30 +95,39 @@ fun Gallery3DScreen(
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val density = LocalDensity.current
+
+    // LruCache (em KB)
+    val bitmapCache = remember {
+        val maxMemoryKb = (Runtime.getRuntime().maxMemory() / 1024).toInt()
+        // Use 1/8th of available memory for cache
+        val cacheSizeKb = maxMemoryKb / 8
+        object : LruCache<String, Bitmap>(cacheSizeKb) {
+            override fun sizeOf(key: String, value: Bitmap): Int {
+                return value.byteCount / 1024
+            }
+        }
+    }
 
     // Apenas tipos que são imagens (is3D == false)
-    val imageTypes = remember {
-        TeethModelType.entries.filter { !it.is3D }
-    }
+    val imageTypes = remember { TeethModelType.entries.filter { !it.is3D } }
 
-    // initial model: first image if available
-    var selectedModel by remember {
-        mutableStateOf(TeethModel3D(imageTypes.first()))
-    }
+    // initial model: first image if available (fallback to CANINE_IMAGE)
+    val defaultType = imageTypes.firstOrNull() ?: TeethModelType.CANINE_IMAGE
+    var selectedModel by remember { mutableStateOf(TeethModel3D(defaultType)) }
 
-    var showInfo by remember { mutableStateOf(false) }
-    val allModels = remember {
-        imageTypes.map { TeethModel3D(it) }
-    }
+    val showInfoState = remember { mutableStateOf(false) }
+    val allModels = remember(imageTypes) { imageTypes.map { TeethModel3D(it) } }
 
-    // Transform state for gestures
-    var scale by remember { mutableStateOf(1f) }
+    // Transform state for gestures: baseScale (fit-to-screen) x userScale (pinch)
+    var baseScale by remember { mutableStateOf(1f) }
+    var userScale by remember { mutableStateOf(1f) }
     var offsetX by remember { mutableStateOf(0f) }
     var offsetY by remember { mutableStateOf(0f) }
 
-    // reset transform when model changes
+    // When model changes, reset user transform but keep baseScale recalculated later
     LaunchedEffect(selectedModel.fileName) {
-        scale = 1f
+        userScale = 1f
         offsetX = 0f
         offsetY = 0f
     }
@@ -72,23 +135,18 @@ fun Gallery3DScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        text = "Galeria 3D",
-                        fontWeight = FontWeight.Bold
-                    )
-                },
+                title = { Text(text = "Galeria 3D", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showInfo = !showInfo }) {
+                    IconButton(onClick = { showInfoState.value = !showInfoState.value }) {
                         Icon(
                             imageVector = Icons.Filled.Info,
                             contentDescription = "Informações",
-                            tint = if (showInfo) SmilePrimary else MaterialTheme.colorScheme.onSurface
+                            tint = if (showInfoState.value) SmilePrimary else MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -100,121 +158,174 @@ fun Gallery3DScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Área do visualizador (exibir imagens)
+            // Visualizador: usar Box + onGloballyPositioned para obter tamanho disponível em pixels
+            var containerWidthPx by remember { mutableStateOf(0f) }
+            var containerHeightPx by remember { mutableStateOf(0f) }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                SmilePrimary.copy(alpha = 0.05f),
-                                Color.Transparent
-                            )
-                        )
-                    ),
+                    .background(Brush.verticalGradient(colors = listOf(SmilePrimary.copy(alpha = 0.05f), Color.Transparent)))
+                    .onGloballyPositioned { coords ->
+                        val size = coords.size
+                        containerWidthPx = size.width.toFloat()
+                        containerHeightPx = size.height.toFloat()
+                    },
                 contentAlignment = Alignment.Center
             ) {
-                // Carrega imagem do assets/models
-                val bitmap = remember(selectedModel.fileName) {
-                    try {
-                        context.assets.open("models/${selectedModel.fileName}").use { stream ->
-                            BitmapFactory.decodeStream(stream)
-                        }
-                    } catch (_: Exception) {
-                        null
+                // Async load with produceState and caching
+                val loadResult by produceState<LoadResult>(initialValue = LoadResult.Loading, key1 = selectedModel.fileName) {
+                    val cacheKey = "main:${selectedModel.fileName}"
+                    // try cache
+                    val cached = bitmapCache.get(cacheKey)
+                    if (cached != null) {
+                        value = LoadResult.Success(cached)
+                        return@produceState
                     }
-                }
 
-                // Area interativa com gestos: pinça para zoom e arraste para mover
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(12.dp)
-                        .pointerInput(selectedModel.fileName) {
-                            detectTransformGestures { _, pan, zoom, _ ->
-                                // pan: Offset in pixels
-                                offsetX += pan.x
-                                offsetY += pan.y
-                                scale = (scale * zoom).coerceIn(0.5f, 4f)
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (bitmap != null) {
-                        Image(
-                            bitmap = bitmap.asImageBitmap(),
-                            contentDescription = selectedModel.displayName,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .graphicsLayer {
-                                    translationX = offsetX
-                                    translationY = offsetY
-                                    scaleX = scale
-                                    scaleY = scale
-                                },
-                            contentScale = ContentScale.Fit
-                        )
+                    // decode with a reasonable cap: target max dimension equals container * 1.5 (allow zoom quality)
+                    val reqW = (containerWidthPx * 1.5f).toInt().coerceAtLeast(256)
+                    val reqH = (containerHeightPx * 1.5f).toInt().coerceAtLeast(256)
+
+                    val bmp = decodeBitmapFromAsset(context, "models/${selectedModel.fileName}", reqW, reqH)
+                    if (bmp != null) {
+                        bitmapCache.put(cacheKey, bmp)
+                        value = LoadResult.Success(bmp)
                     } else {
-                        Text(
-                            text = selectedModel.previewEmoji,
-                            fontSize = 120.sp
-                        )
+                        value = LoadResult.Error
                     }
+                }
 
-                    // dica de uso flutuante
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 8.dp)
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), RoundedCornerShape(12.dp))
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = "Use pinça para zoom e arraste para mover",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    // Botões utilitários (Reset / Fit)
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        FilledTonalIconButton(
-                            onClick = {
-                                scale = 1f
-                                offsetX = 0f
-                                offsetY = 0f
-                            },
-                            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                        ) {
-                            Icon(Icons.Filled.Refresh, contentDescription = "Reset")
+                // compute baseScale once when bitmap becomes available
+                LaunchedEffect(loadResult) {
+                    if (loadResult is LoadResult.Success) {
+                        val bmp = (loadResult as LoadResult.Success).bitmap
+                        if (bmp.width > 0 && bmp.height > 0) {
+                            val fitScale = minOf(containerWidthPx / bmp.width.toFloat(), containerHeightPx / bmp.height.toFloat())
+                            baseScale = fitScale.coerceAtMost(1f)
+                        } else {
+                            baseScale = 1f
                         }
+                        userScale = 1f
+                        offsetX = 0f
+                        offsetY = 0f
+                    }
+                }
 
-                        FilledTonalIconButton(
-                            onClick = {
-                                // Ajusta para caber na largura (simplesmente restaura escala 1)
-                                scale = 1f
-                                offsetX = 0f
-                                offsetY = 0f
-                            },
-                            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                        ) {
-                            Icon(Icons.Filled.ZoomIn, contentDescription = "Ajustar")
+                // Combined scale used for rendering
+                val combinedScale by remember(baseScale, userScale) { derivedStateOf { baseScale * userScale } }
+
+                // Crossfade between loading/success/error
+                Crossfade(targetState = loadResult, label = "imageCrossfade") { result ->
+                    when (result) {
+                        is LoadResult.Loading -> {
+                            // show loading indicator
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator()
+                            }
+                        }
+                        is LoadResult.Error -> {
+                            // fallback friendly UI
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Filled.BrokenImage, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), modifier = Modifier.size(64.dp))
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text("Imagem indisponível", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                            }
+                        }
+                        is LoadResult.Success -> {
+                            val bmp = result.bitmap
+                            // Interactive area
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .pointerInput(selectedModel.fileName) {
+                                        detectTransformGestures { _, pan, zoom, _ ->
+                                            // update pan and zoom (userScale)
+                                            offsetX += pan.x
+                                            offsetY += pan.y
+                                            userScale = (userScale * zoom).coerceIn(0.5f, 6f)
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    bitmap = bmp.asImageBitmap(),
+                                    contentDescription = selectedModel.displayName,
+                                    modifier = Modifier
+                                        .graphicsLayer {
+                                            translationX = offsetX
+                                            translationY = offsetY
+                                            scaleX = combinedScale
+                                            scaleY = combinedScale
+                                        }
+                                        .fillMaxWidth(),
+                                    contentScale = ContentScale.Fit
+                                )
+
+                                // floating usage hint
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopCenter)
+                                        .padding(top = 8.dp)
+                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), RoundedCornerShape(12.dp))
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = "Pinça: zoom — Arraste: mover",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+
+                                // util buttons
+                                Row(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    FilledTonalIconButton(
+                                        onClick = {
+                                            // reset user transform and fit
+                                            userScale = 1f
+                                            offsetX = 0f
+                                            offsetY = 0f
+                                        },
+                                        colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                    ) {
+                                        Icon(Icons.Filled.Refresh, contentDescription = "Reset")
+                                    }
+
+                                    FilledTonalIconButton(
+                                        onClick = {
+                                            // fit to screen by recalculating baseScale (already fit) and reset userScale
+                                            userScale = 1f
+                                            offsetX = 0f
+                                            offsetY = 0f
+                                        },
+                                        colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                    ) {
+                                        Icon(Icons.Filled.ZoomIn, contentDescription = "Ajustar")
+                                    }
+                                }
+                            }
                         }
                     }
                 }
 
-                if (showInfo) {
-                    ModelInfoCard(selectedModel)
+                // Animated info card (usa o state com .value)
+                Crossfade(targetState = showInfoState.value, label = "infoCrossfade") { visible ->
+                    if (visible) {
+                        // posiciona o card no topo do visualizador
+                        Box(modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .align(Alignment.TopCenter)
+                        ) {
+                            ModelInfoCard(selectedModel)
+                        }
+                    }
                 }
 
             }
@@ -228,28 +339,14 @@ fun Gallery3DScreen(
                     .padding(horizontal = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = selectedModel.displayName,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = SmilePrimary
-                )
-                Text(
-                    text = selectedModel.description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                    textAlign = TextAlign.Center
-                )
+                Text(text = selectedModel.displayName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = SmilePrimary)
+                Text(text = selectedModel.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), textAlign = TextAlign.Center)
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Paleta de seleção de imagens (miniaturas carregadas dos assets)
-            ModelPalette(
-                models = allModels,
-                selectedModel = selectedModel,
-                onModelSelected = { selectedModel = it }
-            )
+            // Paleta de seleção (com downsampling + cache)
+            ModelPalette(models = allModels, selectedModel = selectedModel, onModelSelected = { selectedModel = it }, bitmapCache = bitmapCache, density = density)
 
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -257,16 +354,16 @@ fun Gallery3DScreen(
 }
 
 @Composable
-fun ModelPalette(
+private fun ModelPalette(
     models: List<TeethModel3D>,
     selectedModel: TeethModel3D,
-    onModelSelected: (TeethModel3D) -> Unit
+    onModelSelected: (TeethModel3D) -> Unit,
+    bitmapCache: LruCache<String, Bitmap>,
+    density: Density
 ) {
     val listState = rememberLazyListState()
 
-    Column(
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -274,153 +371,72 @@ fun ModelPalette(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Modelos Disponíveis",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "${models.indexOf(selectedModel) + 1}/${models.size}",
-                style = MaterialTheme.typography.bodySmall,
-                color = SmilePrimary
-            )
+            Text(text = "Modelos Disponíveis", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(text = "${models.indexOf(selectedModel) + 1}/${models.size}", style = MaterialTheme.typography.bodySmall, color = SmilePrimary)
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        LazyRow(
-            state = listState,
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        LazyRow(state = listState, contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             items(models) { model ->
-                ModelPaletteItem(
-                    model = model,
-                    isSelected = model.type == selectedModel.type,
-                    onClick = { onModelSelected(model) }
-                )
+                ModelPaletteItem(model = model, isSelected = model.type == selectedModel.type, onClick = { onModelSelected(model) }, bitmapCache = bitmapCache, density = density)
             }
         }
     }
 }
 
 @Composable
-fun ModelPaletteItem(
+private fun ModelPaletteItem(
     model: TeethModel3D,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    bitmapCache: LruCache<String, Bitmap>,
+    density: Density
 ) {
-    val scale by animateFloatAsState(
-        targetValue = if (isSelected) 1.1f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy
-        ),
-        label = "scale"
-    )
+    val scaleAnim by animateFloatAsState(targetValue = if (isSelected) 1.1f else 1f, animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy), label = "scale")
 
     Card(
         modifier = Modifier
             .width(100.dp)
             .height(120.dp)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            },
+            .graphicsLayer { scaleX = scaleAnim; scaleY = scaleAnim },
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected)
-                SmilePrimary.copy(alpha = 0.2f)
-            else
-                MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isSelected) 8.dp else 2.dp
-        ),
+        colors = CardDefaults.cardColors(containerColor = if (isSelected) SmilePrimary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 8.dp else 2.dp),
         onClick = onClick
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (isSelected) {
-                            Brush.linearGradient(
-                                colors = listOf(SmilePrimary, SmileSecondary)
-                            )
-                        } else {
-                            Brush.linearGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.surfaceVariant,
-                                    MaterialTheme.colorScheme.surface
-                                )
-                            )
-                        }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                // Tentar carregar miniatura do assets
+        Column(modifier = Modifier.fillMaxSize().padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Box(modifier = Modifier.size(48.dp).clip(CircleShape).background(if (isSelected) Brush.linearGradient(colors = listOf(SmilePrimary, SmileSecondary)) else Brush.linearGradient(colors = listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surface))), contentAlignment = Alignment.Center) {
                 val context = LocalContext.current
-                val thumbBitmap = remember(model.fileName) {
-                    try {
-                        context.assets.open("models/${model.fileName}").use { stream ->
-                            BitmapFactory.decodeStream(stream)
-                        }
-                    } catch (_: Exception) {
-                        null
-                    }
+                // thumbnail cache key
+                val cacheKey = "thumb:${model.fileName}"
+                val thumbState by produceState<LoadResult>(initialValue = LoadResult.Loading, key1 = model.fileName) {
+                    val cached = bitmapCache.get(cacheKey)
+                    if (cached != null) { value = LoadResult.Success(cached); return@produceState }
+                    // request small thumbnail (in pixels) - use 72dp as target
+                    val targetPx = with(density) { 72.dp.toPx().toInt() }
+                    val bmp = decodeBitmapFromAsset(context, "models/${model.fileName}", targetPx, targetPx)
+                    if (bmp != null) {
+                        bitmapCache.put(cacheKey, bmp)
+                        value = LoadResult.Success(bmp)
+                    } else value = LoadResult.Error
                 }
 
-                if (thumbBitmap != null) {
-                    Image(
-                        bitmap = thumbBitmap.asImageBitmap(),
-                        contentDescription = model.displayName,
-                        modifier = Modifier.size(36.dp),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Text(
-                        text = model.previewEmoji,
-                        fontSize = 28.sp
-                    )
+                when (thumbState) {
+                    is LoadResult.Loading -> CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    is LoadResult.Error -> Text(text = model.previewEmoji, fontSize = 20.sp)
+                    is LoadResult.Success -> Image(bitmap = (thumbState as LoadResult.Success).bitmap.asImageBitmap(), contentDescription = model.displayName, modifier = Modifier.size(36.dp), contentScale = ContentScale.Crop)
                 }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Text(
-                text = model.displayName,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                color = if (isSelected) SmilePrimary else MaterialTheme.colorScheme.onSurface,
-                fontSize = 11.sp
-            )
+            Text(text = model.displayName, style = MaterialTheme.typography.labelSmall, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, textAlign = TextAlign.Center, maxLines = 2, color = if (isSelected) SmilePrimary else MaterialTheme.colorScheme.onSurface, fontSize = 11.sp)
         }
 
         if (isSelected) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.End)
-                    .padding(4.dp)
-                    .size(20.dp)
-                    .clip(CircleShape)
-                    .background(SmilePrimary),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Check,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(14.dp)
-                )
+            Box(modifier = Modifier.align(Alignment.End).padding(4.dp).size(20.dp).clip(CircleShape).background(SmilePrimary), contentAlignment = Alignment.Center) {
+                Icon(imageVector = Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
             }
         }
     }
@@ -428,44 +444,18 @@ fun ModelPaletteItem(
 
 @Composable
 fun ModelInfoCard(model: TeethModel3D) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Info,
-                    contentDescription = null,
-                    tint = SmilePrimary,
-                    modifier = Modifier.size(20.dp)
-                )
+    Card(modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f))) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(imageVector = Icons.Filled.Info, contentDescription = null, tint = SmilePrimary, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Sobre este modelo",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
+                Text(text = "Sobre este modelo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Text(
-                text = model.description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-            )
+            Text(text = model.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
 
-            // Informações adicionais baseadas no tipo (apenas para imagens)
             Spacer(modifier = Modifier.height(12.dp))
 
             if (!model.is3D) {
@@ -510,7 +500,6 @@ fun ModelInfoCard(model: TeethModel3D) {
                     }
                 }
             } else {
-                // Para modelos 3D, apenas mostrar que é um modelo 3D e o arquivo
                 InfoItem("Formato", "Modelo 3D (.glb)")
                 InfoItem("Arquivo", model.fileName)
             }
@@ -520,22 +509,8 @@ fun ModelInfoCard(model: TeethModel3D) {
 
 @Composable
 fun InfoItem(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(text = label, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+        Text(text = value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
     }
 }

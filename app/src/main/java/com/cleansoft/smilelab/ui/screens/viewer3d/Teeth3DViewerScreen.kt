@@ -63,11 +63,31 @@ private data class ViewerModelOption(
 )
 
 private val viewerModelOptions = listOf(
-    ViewerModelOption("default", "Dente em destaque", "models/cavidade_classe_ii__mo__dente_16.glb"),
-    ViewerModelOption("molar", TeethModelType.MOLAR.displayName, "models/inside_my_tooth.glb"),
-    ViewerModelOption("incisor", TeethModelType.INCISOR.displayName, "models/dente_28_-_upper_left_third_molar_id_28a.glb"),
-    ViewerModelOption("canine", TeethModelType.CANINE.displayName, "models/dente_18_-_upper_right_third_molar_id_18c.glb"),
-    ViewerModelOption("section", TeethModelType.TOOTH_SECTION.displayName, "models/dente36.glb")
+    ViewerModelOption(
+        "permanent",
+        TeethModelType.PERMANENT_DENTITION.displayName,
+        "models/${TeethModelType.PERMANENT_DENTITION.fileName}"
+    ),
+    ViewerModelOption(
+        "incisor",
+        TeethModelType.MAXILLARY_LEFT_CENTRAL_INCISOR.displayName,
+        "models/${TeethModelType.MAXILLARY_LEFT_CENTRAL_INCISOR.fileName}"
+    ),
+    ViewerModelOption(
+        "canine",
+        TeethModelType.MAXILLARY_CANINE.displayName,
+        "models/${TeethModelType.MAXILLARY_CANINE.fileName}"
+    ),
+    ViewerModelOption(
+        "molar",
+        TeethModelType.MAXILLARY_FIRST_MOLAR.displayName,
+        "models/${TeethModelType.MAXILLARY_FIRST_MOLAR.fileName}"
+    ),
+    ViewerModelOption(
+        "premolar",
+        TeethModelType.MANDIBULAR_FIRST_PREMOLAR.displayName,
+        "models/${TeethModelType.MANDIBULAR_FIRST_PREMOLAR.fileName}"
+    )
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -199,7 +219,6 @@ fun Teeth3DViewerScreen(
 
             ViewerControlPanel(
                 selectedModel = selectedModel,
-                modelOptions = viewerModelOptions,
                 onModelSelected = {
                     selectedModel = it
                     isModelLoaded = false
@@ -238,7 +257,7 @@ fun Teeth3DViewerScreen(
 @Composable
 private fun ViewerControlPanel(
     selectedModel: ViewerModelOption,
-    modelOptions: List<ViewerModelOption>,
+    modelOptions: List<ViewerModelOption> = viewerModelOptions,
     onModelSelected: (ViewerModelOption) -> Unit,
     mainLightIntensity: Float,
     onMainLightIntensityChange: (Float) -> Unit,
