@@ -63,15 +63,16 @@ private data class ViewerModelOption(
 )
 
 private val viewerModelOptions = listOf(
-    ViewerModelOption(
-        "permanent",
-        TeethModelType.PERMANENT_DENTITION.displayName,
-        "models/${TeethModelType.PERMANENT_DENTITION.fileName}"
-    ),
+
     ViewerModelOption(
         "incisor",
         TeethModelType.MAXILLARY_LEFT_CENTRAL_INCISOR.displayName,
         "models/${TeethModelType.MAXILLARY_LEFT_CENTRAL_INCISOR.fileName}"
+    ),
+    ViewerModelOption(
+        "permanent",
+        TeethModelType.PERMANENT_DENTITION.displayName,
+        "models/${TeethModelType.PERMANENT_DENTITION.fileName}"
     ),
     ViewerModelOption(
         "canine",
