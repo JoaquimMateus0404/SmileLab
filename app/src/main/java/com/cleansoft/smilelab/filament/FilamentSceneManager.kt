@@ -398,6 +398,27 @@ class FilamentSceneManager(
      */
     fun getCameraManipulator(): Manipulator? = cameraManipulator
 
+    fun beginCameraGesture(x: Int, y: Int, isPan: Boolean) {
+        FilamentEngineManager.runOnGLThread {
+            cameraManipulator?.grabBegin(x, y, isPan)
+        }
+    }
+
+    fun updateCameraGesture(x: Int, y: Int, zoomDelta: Float? = null) {
+        FilamentEngineManager.runOnGLThread {
+            cameraManipulator?.let { manipulator ->
+                zoomDelta?.let { manipulator.scroll(0, 0, it) }
+                manipulator.grabUpdate(x, y)
+            }
+        }
+    }
+
+    fun endCameraGesture() {
+        FilamentEngineManager.runOnGLThread {
+            cameraManipulator?.grabEnd()
+        }
+    }
+
     /**
      * Reset da câmera para posição inicial
      */

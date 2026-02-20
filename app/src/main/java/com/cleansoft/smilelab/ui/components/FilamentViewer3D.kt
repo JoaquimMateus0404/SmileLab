@@ -120,12 +120,12 @@ fun FilamentViewer3D(
  * Suporta: rotação (1 dedo), pan (2 dedos), zoom (pinch)
  */
 private fun handleTouch(manager: FilamentSceneManager, event: MotionEvent): Boolean {
-    val manipulator = manager.getCameraManipulator() ?: return false
+    if (manager.getCameraManipulator() == null) return false
 
     when (event.actionMasked) {
         MotionEvent.ACTION_DOWN -> {
             // 1 dedo = rotação
-            manipulator.grabBegin(event.x.toInt(), event.y.toInt(), false)
+            manager.beginCameraGesture(event.x.toInt(), event.y.toInt(), isPan = false)
         }
 
         MotionEvent.ACTION_POINTER_DOWN -> {
@@ -156,39 +156,26 @@ private fun handleTouch(manager: FilamentSceneManager, event: MotionEvent): Bool
 
                 // Usar razão entre distâncias para tornar o zoom independente de dpi
                 val previousDistance = manager.getPreviousPinchDistance()
-                if (previousDistance > 0f && distance > 0f) {
-                    val ratio = distance / previousDistance
-                    if (ratio.isFinite() && ratio > 0f) {
-                        // Quando os dedos se afastam (ratio > 1), queremos scroll negativo (zoom in)
-                        val zoomSensitivity = 6f
-                        val zoomDelta = kotlin.math.ln(ratio) * zoomSensitivity
-                        manipulator.scroll(0, 0, -zoomDelta)
-                    }
+                var zoomDelta: Float? = null
+                if (previousDistance > 0) {
+                    val delta = distance - previousDistance
+                    zoomDelta = delta * 0.05f
                 }
                 manager.setPreviousPinchDistance(distance)
 
                 // Pan com dois dedos
-                manipulator.grabUpdate(x.toInt(), y.toInt())
+                manager.updateCameraGesture(x.toInt(), y.toInt(), zoomDelta)
             } else {
                 // Rotação com 1 dedo
-                manipulator.grabUpdate(event.x.toInt(), event.y.toInt())
+                manager.updateCameraGesture(event.x.toInt(), event.y.toInt())
             }
         }
 
         MotionEvent.ACTION_UP,
         MotionEvent.ACTION_POINTER_UP,
         MotionEvent.ACTION_CANCEL -> {
-            // Finaliza o grab atual
-            manipulator.grabEnd()
-            // Se sobrar 1 dedo, retoma o modo de rotação com o dedo restante
-            val remaining = event.pointerCount - 1
-            if (remaining == 1) {
-                // index do dedo que permaneceu (0 ou 1)
-                val remainingIndex = if (event.actionIndex == 0) 1 else 0
-                manipulator.grabBegin(event.getX(remainingIndex).toInt(), event.getY(remainingIndex).toInt(), false)
-            } else {
-                manager.setPreviousPinchDistance(0f)
-            }
+            manager.endCameraGesture()
+            manager.setPreviousPinchDistance(0f)
         }
     }
 
