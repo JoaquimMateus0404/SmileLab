@@ -1,9 +1,10 @@
 package com.cleansoft.smilelab.ui.screens.gallery3d
 
-import androidx.compose.animation.*
+import android.graphics.BitmapFactory
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -12,8 +13,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.RotateLeft
-import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,10 +22,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import com.cleansoft.smilelab.data.model.TeethModel3D
 import com.cleansoft.smilelab.data.model.TeethModelType
 import com.cleansoft.smilelab.ui.theme.SmilePrimary
@@ -37,12 +40,33 @@ import com.cleansoft.smilelab.ui.theme.SmileSecondary
 fun Gallery3DScreen(
     onNavigateBack: () -> Unit
 ) {
-    var selectedModel by remember {
-        mutableStateOf(TeethModel3D(TeethModelType.COMPLETE_DENTITION))
+    val context = LocalContext.current
+
+    // Apenas tipos que são imagens (is3D == false)
+    val imageTypes = remember {
+        TeethModelType.entries.filter { !it.is3D }
     }
+
+    // initial model: first image if available
+    var selectedModel by remember {
+        mutableStateOf(TeethModel3D(imageTypes.first()))
+    }
+
     var showInfo by remember { mutableStateOf(false) }
     val allModels = remember {
-        TeethModelType.entries.map { TeethModel3D(it) }
+        imageTypes.map { TeethModel3D(it) }
+    }
+
+    // Transform state for gestures
+    var scale by remember { mutableStateOf(1f) }
+    var offsetX by remember { mutableStateOf(0f) }
+    var offsetY by remember { mutableStateOf(0f) }
+
+    // reset transform when model changes
+    LaunchedEffect(selectedModel.fileName) {
+        scale = 1f
+        offsetX = 0f
+        offsetY = 0f
     }
 
     Scaffold(
@@ -76,7 +100,7 @@ fun Gallery3DScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Área do visualizador 3D
+            // Área do visualizador (exibir imagens)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -88,52 +112,111 @@ fun Gallery3DScreen(
                                 Color.Transparent
                             )
                         )
-                    )
+                    ),
+                contentAlignment = Alignment.Center
             ) {
-                // TODO: Integrar FilamentViewer3D com o modelo selecionado
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = selectedModel.icon,
-                        fontSize = 120.sp,
-                        modifier = Modifier
-                            .graphicsLayer {
-                                rotationY = 360f
-                            }
-                    )
-
-                    AnimatedVisibility(visible = showInfo) {
-                        ModelInfoCard(selectedModel)
+                // Carrega imagem do assets/models
+                val bitmap = remember(selectedModel.fileName) {
+                    try {
+                        context.assets.open("models/${selectedModel.fileName}").use { stream ->
+                            BitmapFactory.decodeStream(stream)
+                        }
+                    } catch (_: Exception) {
+                        null
                     }
                 }
 
-                // Controles de rotação (simulação)
-                Row(
+                // Area interativa com gestos: pinça para zoom e arraste para mover
+                Box(
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        .fillMaxSize()
+                        .padding(12.dp)
+                        .pointerInput(selectedModel.fileName) {
+                            detectTransformGestures { _, pan, zoom, _ ->
+                                // pan: Offset in pixels
+                                offsetX += pan.x
+                                offsetY += pan.y
+                                scale = (scale * zoom).coerceIn(0.5f, 4f)
+                            }
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
-                    ControlButton(
-                        icon = Icons.AutoMirrored.Filled.RotateLeft,
-                        text = "Girar Esq"
-                    )
-                    ControlButton(
-                        icon = Icons.Filled.ZoomIn,
-                        text = "Zoom +"
-                    )
-                    ControlButton(
-                        icon = Icons.Filled.ZoomOut,
-                        text = "Zoom -"
-                    )
-                    ControlButton(
-                        icon = Icons.AutoMirrored.Filled.RotateRight,
-                        text = "Girar Dir"
-                    )
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = selectedModel.displayName,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .graphicsLayer {
+                                    translationX = offsetX
+                                    translationY = offsetY
+                                    scaleX = scale
+                                    scaleY = scale
+                                },
+                            contentScale = ContentScale.Fit
+                        )
+                    } else {
+                        Text(
+                            text = selectedModel.previewEmoji,
+                            fontSize = 120.sp
+                        )
+                    }
+
+                    // dica de uso flutuante
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 8.dp)
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "Use pinça para zoom e arraste para mover",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    // Botões utilitários (Reset / Fit)
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        FilledTonalIconButton(
+                            onClick = {
+                                scale = 1f
+                                offsetX = 0f
+                                offsetY = 0f
+                            },
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Icon(Icons.Filled.Refresh, contentDescription = "Reset")
+                        }
+
+                        FilledTonalIconButton(
+                            onClick = {
+                                // Ajusta para caber na largura (simplesmente restaura escala 1)
+                                scale = 1f
+                                offsetX = 0f
+                                offsetY = 0f
+                            },
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Icon(Icons.Filled.ZoomIn, contentDescription = "Ajustar")
+                        }
+                    }
                 }
+
+                if (showInfo) {
+                    ModelInfoCard(selectedModel)
+                }
+
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -161,7 +244,7 @@ fun Gallery3DScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Paleta de seleção de modelos
+            // Paleta de seleção de imagens (miniaturas carregadas dos assets)
             ModelPalette(
                 models = allModels,
                 selectedModel = selectedModel,
@@ -282,10 +365,31 @@ fun ModelPaletteItem(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = model.icon,
-                    fontSize = 28.sp
-                )
+                // Tentar carregar miniatura do assets
+                val context = LocalContext.current
+                val thumbBitmap = remember(model.fileName) {
+                    try {
+                        context.assets.open("models/${model.fileName}").use { stream ->
+                            BitmapFactory.decodeStream(stream)
+                        }
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+
+                if (thumbBitmap != null) {
+                    Image(
+                        bitmap = thumbBitmap.asImageBitmap(),
+                        contentDescription = model.displayName,
+                        modifier = Modifier.size(36.dp),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Text(
+                        text = model.previewEmoji,
+                        fontSize = 28.sp
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -319,37 +423,6 @@ fun ModelPaletteItem(
                 )
             }
         }
-    }
-}
-
-@Composable
-fun ControlButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    text: String
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        FilledTonalIconButton(
-            onClick = { /* TODO: Implementar controles */ },
-            modifier = Modifier.size(48.dp),
-            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                containerColor = SmilePrimary.copy(alpha = 0.2f),
-                contentColor = SmilePrimary
-            )
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = text,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall,
-            fontSize = 10.sp,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-        )
     }
 }
 
@@ -392,28 +465,54 @@ fun ModelInfoCard(model: TeethModel3D) {
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
             )
 
-            // Informações adicionais baseadas no tipo
+            // Informações adicionais baseadas no tipo (apenas para imagens)
             Spacer(modifier = Modifier.height(12.dp))
 
-            when (model.type) {
-                TeethModelType.MOLAR -> {
-                    InfoItem("Função", "Triturar e moer alimentos")
-                    InfoItem("Localização", "Parte posterior da boca")
-                    InfoItem("Quantidade", "12 molares (incluindo sisos)")
+            if (!model.is3D) {
+                when (model.type) {
+                    TeethModelType.MOLAR_IMAGE -> {
+                        InfoItem("Função", "Triturar e moer alimentos")
+                        InfoItem("Localização", "Parte posterior da boca")
+                        InfoItem("Curiosidade", "Os molares têm várias cúspides para triturar alimentos")
+                    }
+                    TeethModelType.INCISOR_IMAGE -> {
+                        InfoItem("Função", "Cortar alimentos")
+                        InfoItem("Localização", "Frente da boca")
+                        InfoItem("Curiosidade", "Incisivos têm bordas afiadas para cortar")
+                    }
+                    TeethModelType.CANINE_IMAGE -> {
+                        InfoItem("Função", "Rasgar alimentos")
+                        InfoItem("Localização", "Entre incisivos e pré-molares")
+                        InfoItem("Curiosidade", "Caninos são mais pontiagudos e fortes")
+                    }
+                    TeethModelType.PREMOLAR_IMAGE -> {
+                        InfoItem("Função", "Triturar e rasgar")
+                        InfoItem("Localização", "Entre caninos e molares")
+                    }
+                    TeethModelType.TOOTH_WITH_DECAY_IMAGE -> {
+                        InfoItem("Atenção", "Apresenta sinais de cárie")
+                        InfoItem("Recomendação", "Procure um dentista para avaliação")
+                    }
+                    TeethModelType.GINGIVITIS_IMAGE -> {
+                        InfoItem("Descrição", "Inflamação das gengivas")
+                        InfoItem("Prevenção", "Higiene bucal adequada e consulta regular")
+                    }
+                    TeethModelType.PERIODONTITIS_IMAGE -> {
+                        InfoItem("Descrição", "Inflamação avançada que afeta os tecidos de suporte")
+                        InfoItem("Prevenção", "Controle de placa e acompanhamento profissional")
+                    }
+                    TeethModelType.DENTAL_ANATOMY_IMAGE, TeethModelType.DENTAL_STRUCTURE_IMAGE -> {
+                        InfoItem("Uso", "Referência anatômica educativa")
+                        InfoItem("Sugestão", "Leia o conteúdo relacionado na seção Conhecer Dentes")
+                    }
+                    else -> {
+                        InfoItem("Tipo", model.displayName)
+                    }
                 }
-                TeethModelType.INCISOR -> {
-                    InfoItem("Função", "Cortar alimentos")
-                    InfoItem("Localização", "Frente da boca")
-                    InfoItem("Quantidade", "8 incisivos")
-                }
-                TeethModelType.CANINE -> {
-                    InfoItem("Função", "Rasgar alimentos")
-                    InfoItem("Localização", "Entre incisivos e pré-molares")
-                    InfoItem("Quantidade", "4 caninos")
-                }
-                else -> {
-                    InfoItem("Tipo", model.displayName)
-                }
+            } else {
+                // Para modelos 3D, apenas mostrar que é um modelo 3D e o arquivo
+                InfoItem("Formato", "Modelo 3D (.glb)")
+                InfoItem("Arquivo", model.fileName)
             }
         }
     }
@@ -440,4 +539,3 @@ fun InfoItem(label: String, value: String) {
         )
     }
 }
-

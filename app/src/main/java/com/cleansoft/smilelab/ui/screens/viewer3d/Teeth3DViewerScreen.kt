@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -64,11 +63,11 @@ private data class ViewerModelOption(
 )
 
 private val viewerModelOptions = listOf(
-    ViewerModelOption("default", "Dente em destaque", "models/inside_my_tooth.glb"),
+    ViewerModelOption("default", "Dente em destaque", "models/cavidade_classe_ii__mo__dente_16.glb"),
     ViewerModelOption("molar", TeethModelType.MOLAR.displayName, "models/inside_my_tooth.glb"),
-    ViewerModelOption("incisor", TeethModelType.INCISOR.displayName, "models/inside_my_tooth.glb"),
-    ViewerModelOption("canine", TeethModelType.CANINE.displayName, "models/inside_my_tooth.glb"),
-    ViewerModelOption("section", TeethModelType.TOOTH_SECTION.displayName, "models/inside_my_tooth.glb")
+    ViewerModelOption("incisor", TeethModelType.INCISOR.displayName, "models/dente_28_-_upper_left_third_molar_id_28a.glb"),
+    ViewerModelOption("canine", TeethModelType.CANINE.displayName, "models/dente_18_-_upper_right_third_molar_id_18c.glb"),
+    ViewerModelOption("section", TeethModelType.TOOTH_SECTION.displayName, "models/dente36.glb")
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
