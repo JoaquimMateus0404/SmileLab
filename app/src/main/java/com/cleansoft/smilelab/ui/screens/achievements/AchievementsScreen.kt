@@ -22,9 +22,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.sp
+import com.cleansoft.smilelab.data.local.SmileLabDatabase
 import com.cleansoft.smilelab.data.model.Achievement
 import com.cleansoft.smilelab.data.model.Achievements
+import com.cleansoft.smilelab.data.repository.AchievementsRepository
+import com.cleansoft.smilelab.data.repository.UserPreferencesRepository
 import com.cleansoft.smilelab.ui.theme.SmilePrimary
 import com.cleansoft.smilelab.ui.theme.SmileSecondary
 
@@ -33,8 +37,18 @@ import com.cleansoft.smilelab.ui.theme.SmileSecondary
 fun AchievementsScreen(
     onNavigateBack: () -> Unit
 ) {
-    // TODO: Carregar do repository
+    val context = LocalContext.current
     var achievements by remember { mutableStateOf(Achievements.getAll()) }
+
+    LaunchedEffect(Unit) {
+        val database = SmileLabDatabase.getDatabase(context)
+        val repository = AchievementsRepository(
+            userProgressDao = database.userProgressDao(),
+            brushingReminderDao = database.brushingReminderDao(),
+            userPreferencesRepository = UserPreferencesRepository(context)
+        )
+        achievements = repository.getAchievements()
+    }
     val unlockedCount = achievements.count { it.isUnlocked }
     val totalCount = achievements.size
 

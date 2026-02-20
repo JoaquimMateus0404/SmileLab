@@ -1,12 +1,16 @@
 package com.cleansoft.smilelab.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.cleansoft.smilelab.data.local.SmileLabDatabase
 import com.cleansoft.smilelab.data.repository.UserPreferencesRepository
+import com.cleansoft.smilelab.data.repository.UserProgressRepository
 import com.cleansoft.smilelab.ui.screens.home.HomeScreen
 import com.cleansoft.smilelab.ui.screens.hygiene.BrushingGuideScreen
 import com.cleansoft.smilelab.ui.screens.hygiene.FlossingGuideScreen
@@ -36,6 +40,7 @@ fun SmileLabNavGraph(
     userPreferencesRepository: UserPreferencesRepository
 ) {
     val onboardingCompleted by isOnboardingCompleted.collectAsState(initial = null)
+    val context = LocalContext.current
 
     NavHost(
         navController = navController,
@@ -87,6 +92,7 @@ fun SmileLabNavGraph(
 
         // Conhecer os Dentes
         composable(Screen.KnowYourTeeth.route) {
+            TrackContentVisit(context, "know_teeth_overview", "knowteeth", completed = true)
             KnowYourTeethScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateTo3DViewer = { navController.navigate(Screen.Teeth3DViewer.route) }
@@ -95,6 +101,7 @@ fun SmileLabNavGraph(
 
         // Higiene Bucal
         composable(Screen.OralHygiene.route) {
+            TrackContentVisit(context, "oral_hygiene_overview", "hygiene", completed = true)
             OralHygieneScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToBrushingGuide = { navController.navigate(Screen.BrushingGuide.route) },
@@ -105,18 +112,21 @@ fun SmileLabNavGraph(
 
         // Guias de higiene
         composable(Screen.BrushingGuide.route) {
+            TrackContentVisit(context, "brushing_guide", "hygiene", completed = true)
             BrushingGuideScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }
 
         composable(Screen.FlossingGuide.route) {
+            TrackContentVisit(context, "flossing_guide", "hygiene", completed = true)
             FlossingGuideScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }
 
         composable(Screen.TongueCleaningGuide.route) {
+            TrackContentVisit(context, "tongue_cleaning_guide", "hygiene", completed = true)
             TongueCleaningGuideScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
@@ -124,6 +134,7 @@ fun SmileLabNavGraph(
 
         // Problemas Dentários
         composable(Screen.DentalProblems.route) {
+            TrackContentVisit(context, "dental_problems", "problems", completed = true)
             DentalProblemsScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
@@ -131,6 +142,7 @@ fun SmileLabNavGraph(
 
         // Rotina & Hábitos
         composable(Screen.RoutineHabits.route) {
+            TrackContentVisit(context, "routine_habits", "routine", completed = true)
             RoutineHabitsScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToReminders = { navController.navigate(Screen.Reminders.route) }
@@ -139,6 +151,7 @@ fun SmileLabNavGraph(
 
         // Visualização 3D
         composable(Screen.Teeth3DViewer.route) {
+            TrackContentVisit(context, "teeth_3d_viewer", "viewer3d", completed = false)
             Teeth3DViewerScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
@@ -160,6 +173,7 @@ fun SmileLabNavGraph(
 
         // Galeria 3D
         composable(Screen.Gallery3D.route) {
+            TrackContentVisit(context, "gallery_3d", "viewer3d", completed = false)
             Gallery3DScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
@@ -182,3 +196,21 @@ fun SmileLabNavGraph(
     }
 }
 
+
+
+@Composable
+private fun TrackContentVisit(
+    context: android.content.Context,
+    contentId: String,
+    category: String,
+    completed: Boolean
+) {
+    LaunchedEffect(contentId) {
+        val db = SmileLabDatabase.getDatabase(context)
+        val repo = UserProgressRepository(db.userProgressDao())
+        repo.markContentAsViewed(contentId, category)
+        if (completed) {
+            repo.markContentAsCompleted(contentId, category)
+        }
+    }
+}
