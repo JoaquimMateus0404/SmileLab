@@ -258,6 +258,7 @@ class FilamentSceneManager(
             override fun onDetachedFromSurface() {
                 FilamentEngineManager.runOnGLThread {
                     synchronized(this@FilamentSceneManager) {
+                        displayHelper.detach()
                         swapChain?.let {
                             engine?.destroySwapChain(it)
                             swapChain = null
@@ -500,6 +501,7 @@ class FilamentSceneManager(
 
         // Parar rendering
         choreographer.removeFrameCallback(frameCallback)
+        displayHelper.detach()
         uiHelper.detach()
 
         // Destruir recursos na GL thread
@@ -514,6 +516,7 @@ class FilamentSceneManager(
                 // Destruir componentes Filament
                 engine?.let { eng ->
                     synchronized(this) {
+                        displayHelper.detach()
                         swapChain?.let { eng.destroySwapChain(it) }
                         scene?.skybox?.let { eng.destroySkybox(it) }
 
