@@ -120,11 +120,13 @@ fun FilamentViewer3D(
  * Suporta: rotação (1 dedo), pan (2 dedos), zoom (pinch)
  */
 private fun handleTouch(manager: FilamentSceneManager, event: MotionEvent): Boolean {
+    val manipulator = manager.getCameraManipulator() ?: return false
     if (manager.getCameraManipulator() == null) return false
 
     when (event.actionMasked) {
         MotionEvent.ACTION_DOWN -> {
             // 1 dedo = rotação
+            manipulator.grabBegin(event.x.toInt(), event.y.toInt(), false)
             manager.beginCameraGesture(event.x.toInt(), event.y.toInt(), isPan = false)
         }
 
@@ -134,12 +136,12 @@ private fun handleTouch(manager: FilamentSceneManager, event: MotionEvent): Bool
                 val x = (event.getX(0) + event.getX(1)) / 2
                 val y = (event.getY(0) + event.getY(1)) / 2
                 manipulator.grabBegin(x.toInt(), y.toInt(), true)  // strafe = true para pan
+                manager.beginCameraGesture(x.toInt(), y.toInt(), isPan = true)  // strafe = true para pan
 
-                // Inicializa a distância anterior do pinch para evitar um salto grande no primeiro movimento
-                val dxInit = event.getX(0) - event.getX(1)
-                val dyInit = event.getY(0) - event.getY(1)
-                val initDistance = kotlin.math.sqrt(dxInit * dxInit + dyInit * dyInit)
-                manager.setPreviousPinchDistance(initDistance)
+                // Guardar baseline para zoom quando entrar no gesto de pinça
+                val dx = event.getX(0) - event.getX(1)
+                val dy = event.getY(0) - event.getY(1)
+                manager.setPreviousPinchDistance(kotlin.math.sqrt(dx * dx + dy * dy))
             }
         }
 
