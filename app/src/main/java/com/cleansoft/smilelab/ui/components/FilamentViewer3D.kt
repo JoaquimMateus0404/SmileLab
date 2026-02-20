@@ -20,7 +20,7 @@ import com.cleansoft.smilelab.filament.FilamentSceneManager
 @Composable
 fun FilamentViewer3D(
     modifier: Modifier = Modifier,
-    modelPath: String = "models/permanent_dentition.glb",
+    modelPath: String = "models/maxillary_left_central_incisor.glb",
     onModelLoaded: () -> Unit = {},
     onError: (Exception) -> Unit = {},
     onSceneManagerReady: (FilamentSceneManager) -> Unit = {}
@@ -143,7 +143,7 @@ private fun handleTouch(manager: FilamentSceneManager, event: MotionEvent): Bool
         }
 
         MotionEvent.ACTION_MOVE -> {
-            if (event.pointerCount == 2) {
+            if (event.pointerCount >= 2) {
                 // Calcular centro entre os dois dedos
                 val x = (event.getX(0) + event.getX(1)) / 2
                 val y = (event.getY(0) + event.getY(1)) / 2
@@ -153,7 +153,7 @@ private fun handleTouch(manager: FilamentSceneManager, event: MotionEvent): Bool
                 val dy = event.getY(0) - event.getY(1)
                 val distance = kotlin.math.sqrt(dx * dx + dy * dy)
 
-                // Scroll para zoom (valores negativos = zoom in)
+                // Usar razão entre distâncias para tornar o zoom independente de dpi
                 val previousDistance = manager.getPreviousPinchDistance()
                 var zoomDelta: Float? = null
                 if (previousDistance > 0) {

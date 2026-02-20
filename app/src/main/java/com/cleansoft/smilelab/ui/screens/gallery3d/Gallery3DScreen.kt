@@ -135,7 +135,7 @@ fun Gallery3DScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = "Galeria 3D", fontWeight = FontWeight.Bold) },
+                title = { Text(text = "Galeria de imagens", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
