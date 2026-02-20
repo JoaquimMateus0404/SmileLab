@@ -47,7 +47,7 @@ class FilamentSceneManager(
     private var mainLightEntity: Int? = null
     private var fillLightEntity: Int? = null
     private var backLightEntity: Int? = null
-    private var indirectLightIntensity: Float = 30000f
+    private var indirectLightIntensity: Float = 12000f
     private var skyboxColor: FloatArray = floatArrayOf(0.4f, 0.4f, 0.45f, 1f)
     private var currentModelKey: String? = null
 
@@ -192,7 +192,7 @@ class FilamentSceneManager(
         mainLightEntity = sunEntity
         LightManager.Builder(LightManager.Type.DIRECTIONAL)
             .color(1f, 0.98f, 0.95f)  // Luz levemente quente
-            .intensity(50000f)  // Reduzido de 100000f
+            .intensity(25000f)
             .direction(-0.5f, -1f, -0.8f)  // Ângulo mais natural
             .castShadows(false)  // Desabilitar sombras para melhor performance
             .build(eng, sunEntity)
@@ -203,7 +203,7 @@ class FilamentSceneManager(
         fillLightEntity = fillEntity
         LightManager.Builder(LightManager.Type.DIRECTIONAL)
             .color(0.8f, 0.9f, 1.0f)  // Luz azulada
-            .intensity(20000f)
+            .intensity(8000f)
             .direction(0.5f, 0.5f, 1f)  // Vindo de outra direção
             .castShadows(false)
             .build(eng, fillEntity)
@@ -214,7 +214,7 @@ class FilamentSceneManager(
         backLightEntity = backEntity
         LightManager.Builder(LightManager.Type.DIRECTIONAL)
             .color(1f, 1f, 1f)
-            .intensity(15000f)
+            .intensity(6000f)
             .direction(0f, 1f, 0.5f)  // De baixo para cima
             .castShadows(false)
             .build(eng, backEntity)
@@ -222,9 +222,13 @@ class FilamentSceneManager(
 
         // IndirectLight (iluminação ambiente) - CRÍTICO para materiais PBR
         try {
-            val ibl = IndirectLight.Builder()
-                .intensity(indirectLightIntensity)  // Iluminação ambiente
-                .build(eng)
+            val ibl = createIndirectLight(
+                eng,
+                indirectLightIntensity,
+                skyboxColor[0],
+                skyboxColor[1],
+                skyboxColor[2]
+            )
             scn.indirectLight = ibl
             Log.d(TAG, "✅ IndirectLight configurado")
         } catch (e: Exception) {
@@ -434,14 +438,18 @@ class FilamentSceneManager(
     fun setIndirectLightIntensity(intensity: Float) {
         val eng = engine ?: return
         val scn = scene ?: return
-        indirectLightIntensity = intensity.coerceIn(5_000f, 60_000f)
+        indirectLightIntensity = intensity.coerceIn(2_000f, 30_000f)
 
         FilamentEngineManager.runOnGLThread {
             runCatching {
                 scn.indirectLight?.let { eng.destroyIndirectLight(it) }
-                scn.indirectLight = IndirectLight.Builder()
-                    .intensity(indirectLightIntensity)
-                    .build(eng)
+                scn.indirectLight = createIndirectLight(
+                    eng,
+                    indirectLightIntensity,
+                    skyboxColor[0],
+                    skyboxColor[1],
+                    skyboxColor[2]
+                )
             }.onFailure { Log.e(TAG, "⚠️ Erro ao atualizar IBL", it) }
         }
     }
@@ -460,8 +468,33 @@ class FilamentSceneManager(
                 scn.skybox = Skybox.Builder()
                     .color(skyboxColor[0], skyboxColor[1], skyboxColor[2], skyboxColor[3])
                     .build(eng)
+
+                // Mantém IBL em sintonia com o tom ambiente do skybox
+                scn.indirectLight?.let { eng.destroyIndirectLight(it) }
+                scn.indirectLight = createIndirectLight(
+                    eng,
+                    indirectLightIntensity,
+                    skyboxColor[0],
+                    skyboxColor[1],
+                    skyboxColor[2]
+                )
             }.onFailure { Log.e(TAG, "⚠️ Erro ao atualizar skybox", it) }
         }
+    }
+
+    private fun createIndirectLight(
+        eng: Engine,
+        intensity: Float,
+        r: Float,
+        g: Float,
+        b: Float
+    ): IndirectLight {
+        // 1 banda = iluminação difusa uniforme em todas as direções, com tom configurável.
+        val irradiance = floatArrayOf(r, g, b)
+        return IndirectLight.Builder()
+            .irradiance(1, irradiance)
+            .intensity(intensity)
+            .build(eng)
     }
 
     private fun removeAssetFromScene(key: String) {

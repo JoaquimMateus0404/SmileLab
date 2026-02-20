@@ -100,8 +100,8 @@ fun Teeth3DViewerScreen(
     var isModelLoaded by remember { mutableStateOf(false) }
     var sceneManager by remember { mutableStateOf<FilamentSceneManager?>(null) }
     var selectedModel by remember { mutableStateOf(viewerModelOptions.first()) }
-    var mainLightIntensity by remember { mutableFloatStateOf(50_000f) }
-    var ambientLightIntensity by remember { mutableFloatStateOf(30_000f) }
+    var mainLightIntensity by remember { mutableFloatStateOf(25_000f) }
+    var ambientLightIntensity by remember { mutableFloatStateOf(12_000f) }
     var skyboxTone by remember { mutableFloatStateOf(0.4f) }
     var autoRotateHint by remember { mutableStateOf(true) }
 
@@ -243,8 +243,8 @@ fun Teeth3DViewerScreen(
                 onAutoRotateHintChange = { autoRotateHint = it },
                 onReset = {
                     sceneManager?.resetCamera()
-                    mainLightIntensity = 50_000f
-                    ambientLightIntensity = 30_000f
+                    mainLightIntensity = 25_000f
+                    ambientLightIntensity = 12_000f
                     skyboxTone = 0.4f
                     sceneManager?.setMainLightIntensity(mainLightIntensity)
                     sceneManager?.setIndirectLightIntensity(ambientLightIntensity)
@@ -300,7 +300,7 @@ private fun ViewerControlPanel(
                 icon = Icons.Filled.WbSunny,
                 title = "Luz principal",
                 value = mainLightIntensity,
-                valueRange = 10_000f..110_000f,
+                valueRange = 5_000f..80_000f,
                 onValueChange = onMainLightIntensityChange
             )
 
@@ -308,7 +308,7 @@ private fun ViewerControlPanel(
                 icon = Icons.Filled.Palette,
                 title = "Luz ambiente",
                 value = ambientLightIntensity,
-                valueRange = 5_000f..60_000f,
+                valueRange = 2_000f..30_000f,
                 onValueChange = onAmbientLightIntensityChange
             )
 
