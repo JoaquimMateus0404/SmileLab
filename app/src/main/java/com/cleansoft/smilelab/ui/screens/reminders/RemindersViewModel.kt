@@ -5,7 +5,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.cleansoft.smilelab.data.local.SmileLabDatabase
 import com.cleansoft.smilelab.data.local.entity.BrushingReminder
+import com.cleansoft.smilelab.data.model.AchievementType
 import com.cleansoft.smilelab.data.repository.BrushingReminderRepository
+import com.cleansoft.smilelab.data.repository.UserPreferencesRepository
 import com.cleansoft.smilelab.notifications.ReminderScheduler
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
@@ -17,6 +19,7 @@ class RemindersViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val repository: BrushingReminderRepository
     private val scheduler: ReminderScheduler
+    private val preferencesRepository: UserPreferencesRepository
 
     val allReminders: Flow<List<BrushingReminder>>
 
@@ -24,6 +27,7 @@ class RemindersViewModel(application: Application) : AndroidViewModel(applicatio
         val dao = SmileLabDatabase.getDatabase(application).brushingReminderDao()
         repository = BrushingReminderRepository(dao)
         scheduler = ReminderScheduler(application)
+        preferencesRepository = UserPreferencesRepository(application)
         allReminders = repository.allReminders
     }
 
@@ -48,6 +52,8 @@ class RemindersViewModel(application: Application) : AndroidViewModel(applicatio
             daysOfWeek = daysOfWeek
         )
 
+        preferencesRepository.unlockAchievement(AchievementType.FIRST_REMINDER.name)
+
         val reminderId = repository.insertReminder(reminder)
 
         // Agendar notificação
@@ -57,7 +63,8 @@ class RemindersViewModel(application: Application) : AndroidViewModel(applicatio
             minute = minute,
             title = title,
             message = message ?: "Não se esqueça de cuidar do seu sorriso!",
-            isRepeating = true
+            isRepeating = true,
+            daysOfWeek = daysOfWeek
         )
     }
 
@@ -75,7 +82,8 @@ class RemindersViewModel(application: Application) : AndroidViewModel(applicatio
                 minute = reminder.minute,
                 title = reminder.title,
                 message = reminder.message ?: "Não se esqueça de cuidar do seu sorriso!",
-                isRepeating = true
+                isRepeating = true,
+                daysOfWeek = reminder.daysOfWeek
             )
         } else {
             // Cancelar notificação
@@ -101,7 +109,8 @@ class RemindersViewModel(application: Application) : AndroidViewModel(applicatio
                     minute = it.minute,
                     title = it.title,
                     message = it.message ?: "Não se esqueça de cuidar do seu sorriso!",
-                    isRepeating = true
+                    isRepeating = true,
+                    daysOfWeek = it.daysOfWeek
                 )
             }
         }

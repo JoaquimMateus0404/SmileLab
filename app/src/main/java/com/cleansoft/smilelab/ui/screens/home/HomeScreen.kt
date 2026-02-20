@@ -30,7 +30,7 @@ import com.cleansoft.smilelab.data.repository.UserProgressRepository
 import com.cleansoft.smilelab.ui.components.UserProgressCard
 import com.cleansoft.smilelab.ui.components.DailyTipCard
 import com.cleansoft.smilelab.ui.theme.*
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 
 /**
  * Dados para os módulos educativos
@@ -96,8 +96,6 @@ fun HomeScreen(
     onNavigateToSettings: () -> Unit
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
     // State para estatísticas de progresso
     var progressStats by remember {
         mutableStateOf(
@@ -110,11 +108,11 @@ fun HomeScreen(
         )
     }
 
-    // Carregar estatísticas ao iniciar
+    // Atualiza estatísticas em tempo real conforme o utilizador navega pelos módulos
     LaunchedEffect(Unit) {
-        scope.launch {
-            val database = SmileLabDatabase.getDatabase(context)
-            val repository = UserProgressRepository(database.userProgressDao())
+        val database = SmileLabDatabase.getDatabase(context)
+        val repository = UserProgressRepository(database.userProgressDao())
+        repository.getAllProgress().collect {
             progressStats = repository.getProgressStats()
         }
     }

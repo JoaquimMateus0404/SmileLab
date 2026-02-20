@@ -10,6 +10,11 @@ import java.util.Calendar
 
 /**
  * Scheduler para agendar lembretes de escovação
+ *
+ * Estratégia:
+ * - Usa alarme EXATO + ALLOW_WHILE_IDLE para reduzir atrasos.
+ * - Para lembretes recorrentes, agenda sempre só a PRÓXIMA ocorrência.
+ *   Quando o receiver dispara, ele agenda a seguinte.
  */
 class ReminderScheduler(private val context: Context) {
 
@@ -17,15 +22,18 @@ class ReminderScheduler(private val context: Context) {
 
     companion object {
         private const val TAG = "ReminderScheduler"
+
+        const val EXTRA_IS_REPEATING = "is_repeating"
+        const val EXTRA_HOUR = "hour"
+        const val EXTRA_MINUTE = "minute"
+        const val EXTRA_DAYS_OF_WEEK = "days_of_week"
     }
 
-    /**
-     * Agenda um lembrete de escovação
-     */
     fun scheduleReminder(
         reminderId: Int,
         hour: Int,
         minute: Int,
+        daysOfWeek: List<Int> = listOf(1, 2, 3, 4, 5, 6, 7),
         title: String = "🦷 Hora de Escovar!",
         message: String = "Não se esqueça de cuidar do seu sorriso!",
         isRepeating: Boolean = true
@@ -33,9 +41,14 @@ class ReminderScheduler(private val context: Context) {
         Log.d(TAG, "📅 Agendando lembrete #$reminderId para $hour:$minute")
 
         val intent = Intent(context, ReminderReceiver::class.java).apply {
+            action = "com.cleansoft.smilelab.REMINDER_$reminderId"
             putExtra(ReminderReceiver.EXTRA_REMINDER_ID, reminderId)
             putExtra(ReminderReceiver.EXTRA_TITLE, title)
             putExtra(ReminderReceiver.EXTRA_MESSAGE, message)
+            putExtra(EXTRA_IS_REPEATING, isRepeating)
+            putExtra(EXTRA_HOUR, hour)
+            putExtra(EXTRA_MINUTE, minute)
+            putExtra(EXTRA_DAYS_OF_WEEK, daysOfWeek.distinct().sorted().joinToString(","))
         }
 
         val pendingIntent = PendingIntent.getBroadcast(
@@ -45,25 +58,6 @@ class ReminderScheduler(private val context: Context) {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        // Configurar o horário
-        val calendar = Calendar.getInstance().apply {
-            timeInMillis = System.currentTimeMillis()
-            set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, minute)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-
-            // Se o horário já passou hoje, agendar para amanhã
-            if (timeInMillis <= System.currentTimeMillis()) {
-                add(Calendar.DAY_OF_MONTH, 1)
-                Log.d(TAG, "⏭️ Horário já passou hoje, agendando para amanhã")
-            }
-        }
-
-        val triggerTime = calendar.timeInMillis
-        Log.d(TAG, "⏰ Trigger time: ${calendar.time}")
-
-        // Verificar se o app tem permissão para agendar alarmes exatos
         val canScheduleExactAlarms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             alarmManager.canScheduleExactAlarms()
         } else {
@@ -75,25 +69,24 @@ class ReminderScheduler(private val context: Context) {
             return
         }
 
+        val triggerTime = computeNextTriggerTime(hour, minute, daysOfWeek)
+        Log.d(TAG, "⏰ Próximo disparo: ${Calendar.getInstance().apply { timeInMillis = triggerTime }.time}")
+
         try {
-            if (isRepeating) {
-                // Alarme repetitivo diário
-                alarmManager.setRepeating(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
                     triggerTime,
-                    AlarmManager.INTERVAL_DAY,
                     pendingIntent
                 )
-                Log.d(TAG, "✅ Lembrete repetitivo agendado com sucesso!")
             } else {
-                // Alarme único
                 alarmManager.setExact(
                     AlarmManager.RTC_WAKEUP,
                     triggerTime,
                     pendingIntent
                 )
-                Log.d(TAG, "✅ Lembrete único agendado com sucesso!")
             }
+            Log.d(TAG, "✅ Lembrete exato agendado com sucesso")
         } catch (e: SecurityException) {
             Log.e(TAG, "❌ Erro de permissão ao agendar alarme: ${e.message}")
         } catch (e: Exception) {
@@ -101,11 +94,11 @@ class ReminderScheduler(private val context: Context) {
         }
     }
 
-    /**
-     * Cancela um lembrete agendado
-     */
     fun cancelReminder(reminderId: Int) {
-        val intent = Intent(context, ReminderReceiver::class.java)
+        val intent = Intent(context, ReminderReceiver::class.java).apply {
+            action = "com.cleansoft.smilelab.REMINDER_$reminderId"
+        }
+
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             reminderId,
@@ -116,19 +109,17 @@ class ReminderScheduler(private val context: Context) {
         pendingIntent?.let {
             alarmManager.cancel(it)
             it.cancel()
+            Log.d(TAG, "🛑 Lembrete #$reminderId cancelado")
         }
     }
 
-    /**
-     * Reagenda todos os lembretes ativos
-     * Útil após reiniciar o dispositivo
-     */
     fun rescheduleAllReminders(reminders: List<ReminderInfo>) {
         reminders.forEach { reminder ->
             scheduleReminder(
                 reminderId = reminder.id,
                 hour = reminder.hour,
                 minute = reminder.minute,
+                daysOfWeek = reminder.daysOfWeek,
                 title = reminder.title,
                 message = reminder.message,
                 isRepeating = reminder.isRepeating
@@ -136,10 +127,51 @@ class ReminderScheduler(private val context: Context) {
         }
     }
 
+    private fun computeNextTriggerTime(hour: Int, minute: Int, daysOfWeek: List<Int>): Long {
+        val validDays = if (daysOfWeek.isEmpty()) {
+            listOf(1, 2, 3, 4, 5, 6, 7)
+        } else {
+            daysOfWeek.filter { it in 1..7 }.distinct().sorted()
+        }
+
+        val now = Calendar.getInstance()
+        val base = Calendar.getInstance().apply {
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+
+        for (offset in 0..7) {
+            val candidate = (base.clone() as Calendar).apply {
+                add(Calendar.DAY_OF_YEAR, offset)
+                set(Calendar.HOUR_OF_DAY, hour)
+                set(Calendar.MINUTE, minute)
+            }
+
+            val day = toAppDayOfWeek(candidate.get(Calendar.DAY_OF_WEEK))
+            if (day in validDays && candidate.timeInMillis > now.timeInMillis) {
+                return candidate.timeInMillis
+            }
+        }
+
+        // fallback: amanhã no horário informado
+        return (base.clone() as Calendar).apply {
+            add(Calendar.DAY_OF_YEAR, 1)
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+        }.timeInMillis
+    }
+
+    private fun toAppDayOfWeek(calendarDay: Int): Int {
+        // Calendar: Sunday=1 ... Saturday=7
+        // App: Monday=1 ... Sunday=7
+        return if (calendarDay == Calendar.SUNDAY) 7 else calendarDay - 1
+    }
+
     data class ReminderInfo(
         val id: Int,
         val hour: Int,
         val minute: Int,
+        val daysOfWeek: List<Int>,
         val title: String,
         val message: String,
         val isRepeating: Boolean

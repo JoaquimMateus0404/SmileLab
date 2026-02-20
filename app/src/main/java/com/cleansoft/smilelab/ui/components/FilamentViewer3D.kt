@@ -120,12 +120,12 @@ fun FilamentViewer3D(
  * Suporta: rotação (1 dedo), pan (2 dedos), zoom (pinch)
  */
 private fun handleTouch(manager: FilamentSceneManager, event: MotionEvent): Boolean {
-    val manipulator = manager.getCameraManipulator() ?: return false
+    if (manager.getCameraManipulator() == null) return false
 
     when (event.actionMasked) {
         MotionEvent.ACTION_DOWN -> {
             // 1 dedo = rotação
-            manipulator.grabBegin(event.x.toInt(), event.y.toInt(), false)
+            manager.beginCameraGesture(event.x.toInt(), event.y.toInt(), isPan = false)
         }
 
         MotionEvent.ACTION_POINTER_DOWN -> {
@@ -133,7 +133,12 @@ private fun handleTouch(manager: FilamentSceneManager, event: MotionEvent): Bool
             if (event.pointerCount == 2) {
                 val x = (event.getX(0) + event.getX(1)) / 2
                 val y = (event.getY(0) + event.getY(1)) / 2
-                manipulator.grabBegin(x.toInt(), y.toInt(), true)  // strafe = true para pan
+                manager.beginCameraGesture(x.toInt(), y.toInt(), isPan = true)  // strafe = true para pan
+
+                // Guardar baseline para zoom quando entrar no gesto de pinça
+                val dx = event.getX(0) - event.getX(1)
+                val dy = event.getY(0) - event.getY(1)
+                manager.setPreviousPinchDistance(kotlin.math.sqrt(dx * dx + dy * dy))
             }
         }
 
@@ -150,24 +155,25 @@ private fun handleTouch(manager: FilamentSceneManager, event: MotionEvent): Bool
 
                 // Scroll para zoom (valores negativos = zoom in)
                 val previousDistance = manager.getPreviousPinchDistance()
+                var zoomDelta: Float? = null
                 if (previousDistance > 0) {
                     val delta = distance - previousDistance
-                    manipulator.scroll(0, 0, delta * 0.05f)
+                    zoomDelta = delta * 0.05f
                 }
                 manager.setPreviousPinchDistance(distance)
 
                 // Pan com dois dedos
-                manipulator.grabUpdate(x.toInt(), y.toInt())
+                manager.updateCameraGesture(x.toInt(), y.toInt(), zoomDelta)
             } else {
                 // Rotação com 1 dedo
-                manipulator.grabUpdate(event.x.toInt(), event.y.toInt())
+                manager.updateCameraGesture(event.x.toInt(), event.y.toInt())
             }
         }
 
         MotionEvent.ACTION_UP,
         MotionEvent.ACTION_POINTER_UP,
         MotionEvent.ACTION_CANCEL -> {
-            manipulator.grabEnd()
+            manager.endCameraGesture()
             manager.setPreviousPinchDistance(0f)
         }
     }
