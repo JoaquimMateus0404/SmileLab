@@ -20,7 +20,7 @@ import com.cleansoft.smilelab.filament.FilamentSceneManager
 @Composable
 fun FilamentViewer3D(
     modifier: Modifier = Modifier,
-    modelPath: String = "models/permanent_dentition.glb",
+    modelPath: String = "models/maxillary_left_central_incisor.glb",
     onModelLoaded: () -> Unit = {},
     onError: (Exception) -> Unit = {},
     onSceneManagerReady: (FilamentSceneManager) -> Unit = {}
@@ -133,17 +133,18 @@ private fun handleTouch(manager: FilamentSceneManager, event: MotionEvent): Bool
             if (event.pointerCount == 2) {
                 val x = (event.getX(0) + event.getX(1)) / 2
                 val y = (event.getY(0) + event.getY(1)) / 2
-                manager.beginCameraGesture(x.toInt(), y.toInt(), isPan = true)  // strafe = true para pan
+                manipulator.grabBegin(x.toInt(), y.toInt(), true)  // strafe = true para pan
 
-                // Guardar baseline para zoom quando entrar no gesto de pinça
-                val dx = event.getX(0) - event.getX(1)
-                val dy = event.getY(0) - event.getY(1)
-                manager.setPreviousPinchDistance(kotlin.math.sqrt(dx * dx + dy * dy))
+                // Inicializa a distância anterior do pinch para evitar um salto grande no primeiro movimento
+                val dxInit = event.getX(0) - event.getX(1)
+                val dyInit = event.getY(0) - event.getY(1)
+                val initDistance = kotlin.math.sqrt(dxInit * dxInit + dyInit * dyInit)
+                manager.setPreviousPinchDistance(initDistance)
             }
         }
 
         MotionEvent.ACTION_MOVE -> {
-            if (event.pointerCount == 2) {
+            if (event.pointerCount >= 2) {
                 // Calcular centro entre os dois dedos
                 val x = (event.getX(0) + event.getX(1)) / 2
                 val y = (event.getY(0) + event.getY(1)) / 2
@@ -153,7 +154,7 @@ private fun handleTouch(manager: FilamentSceneManager, event: MotionEvent): Bool
                 val dy = event.getY(0) - event.getY(1)
                 val distance = kotlin.math.sqrt(dx * dx + dy * dy)
 
-                // Scroll para zoom (valores negativos = zoom in)
+                // Usar razão entre distâncias para tornar o zoom independente de dpi
                 val previousDistance = manager.getPreviousPinchDistance()
                 var zoomDelta: Float? = null
                 if (previousDistance > 0) {

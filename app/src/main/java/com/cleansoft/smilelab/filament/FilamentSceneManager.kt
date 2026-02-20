@@ -282,7 +282,7 @@ class FilamentSceneManager(
                         .viewport(width, height)
                         .targetPosition(0f, 0f, 0f)  // Centro do modelo
                         .orbitHomePosition(0f, 1f, 8f)  // Aumentado de 4f para 8f (mais longe)
-                        .zoomSpeed(0.05f)  // Velocidade de zoom suave
+                        .zoomSpeed(0.2f)  // Velocidade de zoom mais responsiva
                         .build(Manipulator.Mode.ORBIT)
 
                     Log.d(TAG, "✅ Câmera configurada: zoom inicial = 8 unidades")
@@ -431,8 +431,8 @@ class FilamentSceneManager(
                 .viewport(viewport.width, viewport.height)
                 .targetPosition(0f, 0f, 0f)
                 .orbitHomePosition(0f, 1f, 8f)
-                .zoomSpeed(0.05f)
-                .build(Manipulator.Mode.ORBIT)
+                .zoomSpeed(0.2f)
+                 .build(Manipulator.Mode.ORBIT)
 
             Log.d(TAG, "🔄 Câmera resetada")
         }
