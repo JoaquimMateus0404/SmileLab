@@ -157,9 +157,9 @@ enum class TeethModelType(
         is3D = true
     ),
     PERMANENT_DENTITION(
-        displayName = "Dentição Permanente (3D)",
-        description = "Modelo 3D da dentição permanente",
-        fileName = "permanent_dentition.glb",
+        displayName = "Canais",
+        description = "Modelo 3D da parte interior do dente",
+        fileName = "inside_my_tooth.glb",
         is3D = true
     ),
 }

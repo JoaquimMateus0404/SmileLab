@@ -1,11 +1,17 @@
 package com.cleansoft.smilelab.ui.screens.knowteeth
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -13,17 +19,21 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cleansoft.smilelab.ui.theme.ModuleKnowTeeth
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Dados sobre tipos de dentes
  */
 data class ToothType(
     val name: String,
-    val emoji: String,
+    val imagePath: String, // caminho dentro de assets, ex: "models/incisor.jpg"
     val count: String,
     val function: String,
     val description: String
@@ -32,28 +42,28 @@ data class ToothType(
 val toothTypes = listOf(
     ToothType(
         name = "Incisivos",
-        emoji = "🔲",
+        imagePath = "models/incisor.jpg",
         count = "8 dentes (4 superiores, 4 inferiores)",
         function = "Cortar alimentos",
         description = "São os dentes da frente, com bordas afiadas e retas. São os primeiros a aparecer nos bebés e essenciais para cortar alimentos como frutas e vegetais."
     ),
     ToothType(
         name = "Caninos",
-        emoji = "🔺",
+        imagePath = "models/canine.jpg",
         count = "4 dentes (2 superiores, 2 inferiores)",
         function = "Rasgar alimentos",
         description = "Também chamados de 'presas', têm forma pontiaguda e são os dentes mais fortes. Servem para rasgar alimentos como carne."
     ),
     ToothType(
         name = "Pré-molares",
-        emoji = "⬛",
+        imagePath = "models/premolar.jpg",
         count = "8 dentes (4 superiores, 4 inferiores)",
         function = "Triturar alimentos",
         description = "Localizam-se entre os caninos e molares. Têm superfície plana com duas cúspides para começar a triturar os alimentos."
     ),
     ToothType(
         name = "Molares",
-        emoji = "🟫",
+        imagePath = "models/molar.jpg",
         count = "12 dentes (incluindo sisos)",
         function = "Moer alimentos",
         description = "São os maiores dentes, localizados no fundo da boca. Têm superfície larga com múltiplas cúspides para moer completamente os alimentos."
@@ -207,11 +217,42 @@ fun ToothTypeCard(tooth: ToothType) {
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = tooth.emoji,
-                    fontSize = 32.sp,
-                    modifier = Modifier.padding(end = 12.dp)
-                )
+                // Load image from assets asynchronously
+                val context = LocalContext.current
+                val bmpState by produceState<Bitmap?>(initialValue = null, key1 = tooth.imagePath) {
+                    withContext(Dispatchers.IO) {
+                        try {
+                            val stream = context.assets.open(tooth.imagePath)
+                            val bmp = BitmapFactory.decodeStream(stream)
+                            value = bmp
+                        } catch (_: Exception) {
+                            value = null
+                        }
+                    }
+                }
+
+                if (bmpState != null) {
+                    Image(
+                        bitmap = bmpState!!.asImageBitmap(),
+                        contentDescription = tooth.name,
+                        modifier = Modifier
+                            .padding(end = 12.dp)
+                            .size(48.dp)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    // Fallback simple circle with initial letter
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 12.dp)
+                            .size(48.dp)
+                            .background(color = ModuleKnowTeeth, shape = CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = tooth.name.first().toString(), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
+                    }
+                }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = tooth.name,
@@ -371,4 +412,3 @@ fun ToothPartCard(part: ToothPart) {
         }
     }
 }
-
